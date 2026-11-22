@@ -390,3 +390,24 @@ test("delivers incoming channel_message events via pi.sendMessage with triggerTu
 	assert.equal(sent[0].opts.deliverAs, "followUp");
 	ui.dispose();
 });
+
+test("a rejected initial subscription retries and syncs jobs without user input", async (t) => {
+	t.mock.timers.enable({ apis: ["setTimeout"] });
+	t.mock.method(console, "error", () => {});
+	const calls: string[] = [];
+	const client = {
+		subscribe: async () => {
+			calls.push("subscribe");
+			if (calls.length === 1) throw new Error("daemon unavailable");
+			return () => {};
+		},
+		listJobs: async () => { calls.push("listJobs"); return []; },
+	};
+	const ui = registerJobsUi({ registerCommand() {} } as unknown as ExtensionAPI, client as unknown as CantClient, "s");
+	t.after(() => ui.dispose());
+	await ui.startSubscription({ hasUI: false } as ExtensionContext);
+	assert.deepEqual(calls, ["subscribe"]);
+	t.mock.timers.tick(250);
+	await new Promise(setImmediate);
+	assert.deepEqual(calls, ["subscribe", "subscribe", "listJobs"]);
+});
