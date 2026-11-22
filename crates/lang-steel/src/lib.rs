@@ -1,6 +1,7 @@
 //! Steel Scheme language adapter for Cant (`GuestLanguage` implementation).
 
 pub mod bindings;
+pub mod catalog;
 pub mod presentation;
 
 use cant_host::capability::CapabilityMeta;
