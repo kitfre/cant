@@ -102,6 +102,30 @@ Kick off background work or hand something to a Pi subagent (both show up live i
                 #:name "unwrap-audit")
 ```
 
+Coordinate two Pi sessions connected to the same local Cant daemon. In the first session’s `/repl`, announce a handle and open a room:
+
+```scheme
+(peers/announce #:name "demo-parser" #:topic "Parser examples")
+(channels/open #:name "parser-demo" #:topic "Agree on sample inputs")
+```
+
+In the second session’s `/repl`, find the peer, join the room, and send a question:
+
+```scheme
+(peers/list #:query "demo-parser")
+(channels/join "#parser-demo")
+(channels/send "#parser-demo" "Should the empty input be a valid example?")
+```
+
+Back in the first session, read the conversation and reply:
+
+```scheme
+(channels/read "#parser-demo" #:unread #f)
+(channels/send "#parser-demo" "Yes, include it alongside a nonempty input.")
+```
+
+Named rooms are discoverable by other local peers. For a one-to-one conversation instead, use `(channels/open #:to "demo-parser" #:message "Can you review the sample inputs?")` from the second session. See [peers and channels](skills/steel/references/channels.md) for waiting on replies and attaching workers.
+
 Call any MCP tools loaded in Pi from Scheme under `mcp/<server>/<tool>`:
 
 ```scheme
