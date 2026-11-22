@@ -24,8 +24,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Build daemon and Steel runner for Pi integration tests
+        run: cargo +stable build --locked -p cant --bins
       - name: Test Pi adapter
         working-directory: adapters/pi
+        env:
+          CANT_BIN: ${{ github.workspace }}/target/debug/cant
         run: |
           npm ci --ignore-scripts
           npm test
