@@ -390,9 +390,9 @@ export function registerJobsUi(pi: ExtensionAPI, client: CantClient, sessionId: 
 			await refreshCant();
 		} catch (err) {
 			console.error("[cant-pi] Failed subscribing to job events:", err);
-			scheduleReconnect();
 		} finally {
 			subscribing = false;
+			scheduleReconnect();
 		}
 	};
 
