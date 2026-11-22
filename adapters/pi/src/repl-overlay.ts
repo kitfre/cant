@@ -54,7 +54,7 @@ class ReplWindow implements Component, Focusable {
 	private disposed = false;
 	private scroll = 0;
 	private pageSize = 10;
-	private cache?: { width: number; version: number; lines: string[] };
+	private cache?: { width: number; version: number; lines: ReturnType<Component["render"]> };
 
 	get focused(): boolean {
 		return this.editor.focused;

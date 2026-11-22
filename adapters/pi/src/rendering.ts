@@ -9,7 +9,7 @@ export function terminalText(text: string): string {
 }
 
 export function cachedRender(render: Component["render"]): Component {
-	let cache: { width: number; lines: string[] } | undefined;
+	let cache: { width: number; lines: ReturnType<Component["render"]> } | undefined;
 	return {
 		invalidate() {
 			cache = undefined;
