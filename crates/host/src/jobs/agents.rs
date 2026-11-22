@@ -5,7 +5,9 @@ use crate::capability::{
     ArgumentMode, CallContext, Capability, CapabilityCatalog, CapabilityError, CapabilityMeta,
 };
 use crate::jobs::driver::WorkerSpec;
-use crate::jobs::{truncate_head_utf8, truncate_tail_utf8, JobManager, NotifyMode, MAX_OUTPUT_REPLY_BYTES};
+use crate::jobs::{
+    truncate_head_utf8, truncate_tail_utf8, JobManager, NotifyMode, MAX_OUTPUT_REPLY_BYTES,
+};
 use async_trait::async_trait;
 use cant_protocol::daemon::{CompletionNotice, JobSummary};
 use serde_json::{json, Map, Value};
@@ -146,7 +148,11 @@ impl AgentFlowJob {
         let mut out = String::new();
         for id in &self.node_order {
             if let Some(node) = self.nodes.get(id) {
-                out.push_str(&format!("--- node '{}' ({}) ---\n", node.id, node.status.as_str()));
+                out.push_str(&format!(
+                    "--- node '{}' ({}) ---\n",
+                    node.id,
+                    node.status.as_str()
+                ));
                 if !node.monitor.is_empty() {
                     out.push_str(&node.monitor);
                     if !node.monitor.ends_with('\n') {
@@ -222,17 +228,17 @@ fn resolve_refs(val: &Value, completions: &HashMap<String, Value>) -> Result<Val
                 let resolved = if pointer.is_empty() || pointer == "/" {
                     root.clone()
                 } else {
-                    root.pointer(pointer)
-                        .cloned()
-                        .ok_or_else(|| format!("Pointer '{pointer}' not found on node '{node_id}'."))?
+                    root.pointer(pointer).cloned().ok_or_else(|| {
+                        format!("Pointer '{pointer}' not found on node '{node_id}'.")
+                    })?
                 };
                 return Ok(resolved);
             }
             if let Some(node_id) = map.get("$artifactFrom").and_then(Value::as_str) {
                 let name = map.get("name").and_then(Value::as_str).unwrap_or("");
-                let root = completions
-                    .get(node_id)
-                    .ok_or_else(|| format!("Referenced artifact node '{node_id}' has no completion."))?;
+                let root = completions.get(node_id).ok_or_else(|| {
+                    format!("Referenced artifact node '{node_id}' has no completion.")
+                })?;
                 return Ok(json!({
                     "fromNode": node_id,
                     "artifact": name,
@@ -281,12 +287,21 @@ fn parse_capabilities_opt(val: Option<&Value>) -> Option<Vec<String>> {
 fn worker_driver<'a>(args: &'a Value, default: &'a str) -> Result<&'a str, CapabilityError> {
     match args.get("driver") {
         None => Ok(default),
-        Some(value) => value.as_str().map(str::trim).filter(|id| !id.is_empty())
-            .ok_or_else(|| CapabilityError::invalid_args("driver", "Expected a nonempty worker driver ID.")),
+        Some(value) => value
+            .as_str()
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .ok_or_else(|| {
+                CapabilityError::invalid_args("driver", "Expected a nonempty worker driver ID.")
+            }),
     }
 }
 
-fn parse_node_def(raw: &Value, default_id: Option<String>, default_driver: &str) -> Result<FlowNodeDef, CapabilityError> {
+fn parse_node_def(
+    raw: &Value,
+    default_id: Option<String>,
+    default_driver: &str,
+) -> Result<FlowNodeDef, CapabilityError> {
     let id = raw
         .get("id")
         .and_then(Value::as_str)
@@ -297,7 +312,9 @@ fn parse_node_def(raw: &Value, default_id: Option<String>, default_driver: &str)
         .get("task")
         .and_then(Value::as_str)
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| CapabilityError::invalid_args("agents", format!("Node '{id}' missing 'task'.")))?
+        .ok_or_else(|| {
+            CapabilityError::invalid_args("agents", format!("Node '{id}' missing 'task'."))
+        })?
         .to_string();
     let name = raw
         .get("name")
@@ -323,7 +340,10 @@ fn parse_node_def(raw: &Value, default_id: Option<String>, default_driver: &str)
         input,
         driver: worker_driver(raw, default_driver)?.to_owned(),
         capabilities: parse_capabilities_opt(raw.get("capabilities")),
-        model: raw.get("model").and_then(Value::as_str).map(ToString::to_string),
+        model: raw
+            .get("model")
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
         timeout_secs: raw.get("timeoutSec").and_then(Value::as_u64),
         output_schema: raw.get("outputSchema").cloned(),
         deps,
@@ -447,7 +467,10 @@ impl Capability for DelegateStart {
             .unwrap_or_else(|| "delegate".into());
         let cwd = resolve_worker_cwd(&ctx.cwd, args.get("cwd").and_then(Value::as_str));
         let driver_id = worker_driver(&args, &ctx.worker_driver)?.to_owned();
-        let model = args.get("model").and_then(Value::as_str).map(ToString::to_string);
+        let model = args
+            .get("model")
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
         let timeout_secs = args.get("timeoutSec").and_then(Value::as_u64);
         let capabilities = parse_capabilities_opt(args.get("capabilities"));
         let notify = NotifyMode::parse(args.get("notify").and_then(Value::as_str))
@@ -464,7 +487,9 @@ impl Capability for DelegateStart {
             if outstanding >= MAX_OUTSTANDING_DELEGATES {
                 return Err(CapabilityError::exec(
                     "JobLimitError",
-                    format!("At most {MAX_OUTSTANDING_DELEGATES} delegate jobs may be outstanding."),
+                    format!(
+                        "At most {MAX_OUTSTANDING_DELEGATES} delegate jobs may be outstanding."
+                    ),
                 ));
             }
         }
@@ -535,7 +560,12 @@ impl Capability for DelegateStart {
             channels: worker_channels,
         };
 
-        ctx.jobs.emit_event(&ctx.session_id, cant_protocol::daemon::DaemonEvent::JobUpdated { job: job.lock().unwrap().summary() });
+        ctx.jobs.emit_event(
+            &ctx.session_id,
+            cant_protocol::daemon::DaemonEvent::JobUpdated {
+                job: job.lock().unwrap().summary(),
+            },
+        );
         let id_prog = id.clone();
         tokio::spawn(async move {
             let _worker_peer_guard = worker_guard;
@@ -548,7 +578,13 @@ impl Capability for DelegateStart {
                     g.status = WorkerStatus::Running;
                 }
                 g.push_monitor(&chunk);
-                jobs_prog.emit_event(&sid_prog, cant_protocol::daemon::DaemonEvent::JobOutput { id: id_prog.clone(), chunk });
+                jobs_prog.emit_event(
+                    &sid_prog,
+                    cant_protocol::daemon::DaemonEvent::JobOutput {
+                        id: id_prog.clone(),
+                        chunk,
+                    },
+                );
             });
 
             {
@@ -558,7 +594,8 @@ impl Capability for DelegateStart {
                 }
             }
 
-            let res = execute_worker_with_pool(&jobs, &driver_id, spec, on_progress, cancel_token).await;
+            let res =
+                execute_worker_with_pool(&jobs, &driver_id, spec, on_progress, cancel_token).await;
 
             let notice_opt = {
                 let mut g = job.lock().unwrap();
@@ -608,7 +645,10 @@ impl Capability for DelegateStart {
             };
 
             let summary = job.lock().unwrap().summary();
-            jobs.emit_event(&session_id, cant_protocol::daemon::DaemonEvent::JobUpdated { job: summary });
+            jobs.emit_event(
+                &session_id,
+                cant_protocol::daemon::DaemonEvent::JobUpdated { job: summary },
+            );
             if let Some(n) = notice_opt {
                 jobs.push_notice(session_id, n);
             }
@@ -651,7 +691,9 @@ impl Capability for DelegateResult {
             .unwrap()
             .get(id)
             .cloned()
-            .ok_or_else(|| CapabilityError::exec("JobNotFoundError", format!("No delegate job '{id}'.")))?;
+            .ok_or_else(|| {
+                CapabilityError::exec("JobNotFoundError", format!("No delegate job '{id}'."))
+            })?;
         let g = job.lock().unwrap();
         if g.session_id != ctx.session_id {
             return Err(CapabilityError::exec(
@@ -751,7 +793,9 @@ impl Capability for DelegateCancel {
             .unwrap()
             .get(id)
             .cloned()
-            .ok_or_else(|| CapabilityError::exec("JobNotFoundError", format!("No delegate job '{id}'.")))?;
+            .ok_or_else(|| {
+                CapabilityError::exec("JobNotFoundError", format!("No delegate job '{id}'."))
+            })?;
         {
             let g = job.lock().unwrap();
             if g.session_id != ctx.session_id {
@@ -820,7 +864,10 @@ fn spawn_flow(
         .unwrap()
         .insert(id.clone(), Arc::clone(&flow));
     let summary = flow.lock().unwrap().summary();
-    ctx.jobs.emit_event(&ctx.session_id, cant_protocol::daemon::DaemonEvent::JobUpdated { job: summary });
+    ctx.jobs.emit_event(
+        &ctx.session_id,
+        cant_protocol::daemon::DaemonEvent::JobUpdated { job: summary },
+    );
 
     let shared_channels: Option<Vec<String>> = match channel_arg {
         Some(ref arg) => {
@@ -928,7 +975,8 @@ fn spawn_flow(
                         channels: worker_channels,
                     };
                     let outcome =
-                        execute_worker_with_pool(&jobs_c, &driver_c, spec, on_prog, cancel_c).await?;
+                        execute_worker_with_pool(&jobs_c, &driver_c, spec, on_prog, cancel_c)
+                            .await?;
                     Ok(json!({
                         "completion": {
                             "text": outcome.text,
@@ -1042,7 +1090,10 @@ fn spawn_flow(
         };
 
         let summary = flow.lock().unwrap().summary();
-        jobs.emit_event(&session_id, cant_protocol::daemon::DaemonEvent::JobUpdated { job: summary });
+        jobs.emit_event(
+            &session_id,
+            cant_protocol::daemon::DaemonEvent::JobUpdated { job: summary },
+        );
         if let Some(n) = notice_opt {
             jobs.push_notice(session_id, n);
         }
@@ -1115,7 +1166,10 @@ impl Capability for AgentsRun {
             task: effective_task,
             input: args.get("input").cloned(),
             cwd: ctx.cwd.clone(),
-            model: args.get("model").and_then(Value::as_str).map(ToString::to_string),
+            model: args
+                .get("model")
+                .and_then(Value::as_str)
+                .map(ToString::to_string),
             timeout_secs: Some(timeout_secs),
             output_schema: args.get("outputSchema").cloned(),
             capabilities: parse_capabilities_opt(args.get("capabilities")),
@@ -1124,9 +1178,15 @@ impl Capability for AgentsRun {
         };
         let cancel = CancellationToken::new();
         let on_prog: crate::jobs::driver::ProgressCallback = Arc::new(|_| {});
-        let outcome = execute_worker_with_pool(&ctx.jobs, worker_driver(&args, &ctx.worker_driver)?, spec, on_prog, cancel)
-            .await
-            .map_err(|e| CapabilityError::exec("AgentRunError", e))?;
+        let outcome = execute_worker_with_pool(
+            &ctx.jobs,
+            worker_driver(&args, &ctx.worker_driver)?,
+            spec,
+            on_prog,
+            cancel,
+        )
+        .await
+        .map_err(|e| CapabilityError::exec("AgentRunError", e))?;
         Ok(json!({
             "text": outcome.text,
             "data": outcome.data,
@@ -1142,10 +1202,9 @@ impl Capability for AgentsRunMany {
         &self.0
     }
     async fn call(&self, ctx: &CallContext, args: Value) -> Result<Value, CapabilityError> {
-        let tasks = args
-            .get("tasks")
-            .and_then(Value::as_array)
-            .ok_or_else(|| CapabilityError::invalid_args("agents.runMany", "Missing 'tasks' array."))?;
+        let tasks = args.get("tasks").and_then(Value::as_array).ok_or_else(|| {
+            CapabilityError::invalid_args("agents.runMany", "Missing 'tasks' array.")
+        })?;
         if tasks.is_empty() || tasks.len() > MAX_FOREGROUND_BATCH {
             return Err(CapabilityError::invalid_args(
                 "agents.runMany",
@@ -1157,7 +1216,10 @@ impl Capability for AgentsRunMany {
         for (i, item) in tasks.iter().enumerate() {
             let def = parse_node_def(item, Some(format!("task_{}", i + 1)), &ctx.worker_driver)?;
             let driver = ctx.jobs.drivers.get(&def.driver).ok_or_else(|| {
-                CapabilityError::invalid_args("agents.runMany", format!("Unknown worker driver '{}'.", def.driver))
+                CapabilityError::invalid_args(
+                    "agents.runMany",
+                    format!("Unknown worker driver '{}'.", def.driver),
+                )
             })?;
             batch.push((def, driver));
         }
@@ -1182,7 +1244,10 @@ impl Capability for AgentsRunMany {
                 .clamp(1, MAX_FOREGROUND_TIMEOUT_SECS);
             let (worker_guard, worker_sid, worker_channels, effective_task) =
                 if let Some(ref ch_ids) = shared_channels {
-                    let wsid = format!("worker-rm-{idx}-{}", &Uuid::new_v4().simple().to_string()[..8]);
+                    let wsid = format!(
+                        "worker-rm-{idx}-{}",
+                        &Uuid::new_v4().simple().to_string()[..8]
+                    );
                     let arg = crate::comms::ChannelArg::Refs(ch_ids.clone());
                     let (guard, plan) = ctx
                         .comms
@@ -1276,7 +1341,11 @@ impl Capability for AgentsStartMany {
             .ok_or_else(|| CapabilityError::invalid_args("agents.startMany", "Missing 'tasks'."))?;
         let mut nodes = Vec::with_capacity(tasks.len());
         for (i, item) in tasks.iter().enumerate() {
-            nodes.push(parse_node_def(item, Some(format!("task_{}", i + 1)), &ctx.worker_driver)?);
+            nodes.push(parse_node_def(
+                item,
+                Some(format!("task_{}", i + 1)),
+                &ctx.worker_driver,
+            )?);
         }
         validate_dag(&nodes)?;
         let name = args
@@ -1334,7 +1403,9 @@ impl Capability for AgentsCollect {
         let token = args
             .get("completionToken")
             .and_then(Value::as_str)
-            .ok_or_else(|| CapabilityError::invalid_args("agents.collect", "Missing 'completionToken'."))?;
+            .ok_or_else(|| {
+                CapabilityError::invalid_args("agents.collect", "Missing 'completionToken'.")
+            })?;
         let flow = ctx
             .jobs
             .flows
@@ -1342,7 +1413,9 @@ impl Capability for AgentsCollect {
             .unwrap()
             .get(id)
             .cloned()
-            .ok_or_else(|| CapabilityError::exec("JobNotFoundError", format!("No agent flow '{id}'.")))?;
+            .ok_or_else(|| {
+                CapabilityError::exec("JobNotFoundError", format!("No agent flow '{id}'."))
+            })?;
         let g = flow.lock().unwrap();
         if g.session_id != ctx.session_id {
             return Err(CapabilityError::exec(
@@ -1391,7 +1464,9 @@ impl Capability for AgentsCancel {
             .unwrap()
             .get(id)
             .cloned()
-            .ok_or_else(|| CapabilityError::exec("JobNotFoundError", format!("No agent flow '{id}'.")))?;
+            .ok_or_else(|| {
+                CapabilityError::exec("JobNotFoundError", format!("No agent flow '{id}'."))
+            })?;
         {
             let g = flow.lock().unwrap();
             if g.session_id != ctx.session_id {
@@ -1453,7 +1528,8 @@ pub fn register(catalog: &CapabilityCatalog) {
     catalog.register(Arc::new(DelegateResult(CapabilityMeta {
         tool_name: "__cant_delegate_result".into(),
         api_path: vec!["delegate".into(), "result".into()],
-        description: "Retrieve non-blocking status or bounded final output of a delegate job.".into(),
+        description: "Retrieve non-blocking status or bounded final output of a delegate job."
+            .into(),
         params_schema: json!({
             "type": "object",
             "additionalProperties": false,
@@ -1610,7 +1686,9 @@ pub fn register(catalog: &CapabilityCatalog) {
     catalog.register(Arc::new(AgentsCollect(CapabilityMeta {
         tool_name: "__cant_agents_collect".into(),
         api_path: vec!["agents".into(), "collect".into()],
-        description: "Collect the final output of a completed durable agent flow using its completionToken.".into(),
+        description:
+            "Collect the final output of a completed durable agent flow using its completionToken."
+                .into(),
         params_schema: json!({
             "type": "object",
             "additionalProperties": false,
@@ -1628,7 +1706,8 @@ pub fn register(catalog: &CapabilityCatalog) {
     catalog.register(Arc::new(AgentsCancel(CapabilityMeta {
         tool_name: "__cant_agents_cancel".into(),
         api_path: vec!["agents".into(), "cancel".into()],
-        description: "Cancel a running durable agent flow and suppress its completion notice.".into(),
+        description: "Cancel a running durable agent flow and suppress its completion notice."
+            .into(),
         params_schema: json!({
             "type": "object",
             "additionalProperties": false,
@@ -1652,7 +1731,9 @@ mod tests {
     fn node_driver_overrides_session_without_changing_model() {
         let node = |extra: Value| {
             let mut args = json!({"id":"n", "task":"review", "model":"requested"});
-            args.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            args.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
             parse_node_def(&args, None, "pi")
         };
         assert_eq!(node(json!({})).unwrap().driver, "pi");

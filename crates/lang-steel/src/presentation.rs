@@ -12,10 +12,7 @@ pub fn format_steel_literal(value: &Value) -> String {
 fn compound(open: &str, items: &[String], depth: usize, pretty: bool) -> String {
     let flat = format!(
         "{open}{})",
-        items
-            .iter()
-            .map(|i| format!(" {i}"))
-            .collect::<String>()
+        items.iter().map(|i| format!(" {i}")).collect::<String>()
     );
     if !pretty || (flat.len() <= 100 && !flat.contains('\n')) {
         return flat;
@@ -103,15 +100,8 @@ pub fn signature(binding: Option<&SteelBinding>, meta: &CapabilityMeta) -> Strin
         .collect();
     let mut parts = vec![name.to_string()];
     for pos in &b.positional {
-        let req = b.mode == "options"
-            || kw_by_field
-                .get(pos.as_str())
-                .is_some_and(|(_, r)| *r);
-        parts.push(if req {
-            pos.clone()
-        } else {
-            format!("[{pos}]")
-        });
+        let req = b.mode == "options" || kw_by_field.get(pos.as_str()).is_some_and(|(_, r)| *r);
+        parts.push(if req { pos.clone() } else { format!("[{pos}]") });
     }
     for kw in &b.keywords {
         if b.mode == "object" && b.positional.contains(&kw.field) {

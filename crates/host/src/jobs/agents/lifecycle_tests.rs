@@ -129,7 +129,10 @@ async fn flow_registration_publishes_running_summary_before_worker_runs() {
 #[tokio::test]
 async fn delegate_start_with_channel_auto_creates_channel_and_cleans_up_peer() {
     let (ctx, calls) = context();
-    let cap = ctx.catalog.get_by_tool_name("__cant_delegate_start").unwrap();
+    let cap = ctx
+        .catalog
+        .get_by_tool_name("__cant_delegate_start")
+        .unwrap();
     let result = cap
         .call(
             &ctx,
@@ -163,14 +166,25 @@ async fn delegate_start_with_channel_auto_creates_channel_and_cleans_up_peer() {
 
     // Worker peer is cleaned up after exit, while the channel remains readable
     let worker_sid = specs[0].session_id.as_deref().unwrap();
-    assert!(ctx.comms.list_peers(None, None, true).iter().all(|p| p.id != worker_sid));
-    assert!(ctx.comms.list_channels(Some(&ctx.session_id), true).iter().any(|c| c.id == ch_id));
+    assert!(ctx
+        .comms
+        .list_peers(None, None, true)
+        .iter()
+        .all(|p| p.id != worker_sid));
+    assert!(ctx
+        .comms
+        .list_channels(Some(&ctx.session_id), true)
+        .iter()
+        .any(|c| c.id == ch_id));
 }
 
 #[tokio::test]
 async fn agents_start_many_with_room_joins_parent_and_all_workers() {
     let (ctx, calls) = context();
-    let cap = ctx.catalog.get_by_tool_name("__cant_agents_start_many").unwrap();
+    let cap = ctx
+        .catalog
+        .get_by_tool_name("__cant_agents_start_many")
+        .unwrap();
     let result = cap
         .call(
             &ctx,
@@ -190,7 +204,10 @@ async fn agents_start_many_with_room_joins_parent_and_all_workers() {
         .as_str()
         .expect("expected channelId on agents/start-many response")
         .to_string();
-    assert!(ch_id.starts_with("ch-"), "expected stable ch-N id, got {ch_id}");
+    assert!(
+        ch_id.starts_with("ch-"),
+        "expected stable ch-N id, got {ch_id}"
+    );
     let (room_summary, _) = ctx
         .comms
         .read_channel(Some(&ctx.session_id), "#auth-audit", false, 10)

@@ -160,9 +160,12 @@ impl Capability for BackgroundStart {
             .map(|arr| {
                 arr.iter()
                     .map(|v| {
-                        v.as_str()
-                            .map(ToString::to_string)
-                            .ok_or_else(|| CapabilityError::invalid_args("background.start", "args must be strings."))
+                        v.as_str().map(ToString::to_string).ok_or_else(|| {
+                            CapabilityError::invalid_args(
+                                "background.start",
+                                "args must be strings.",
+                            )
+                        })
                     })
                     .collect::<Result<Vec<_>, _>>()
             })
@@ -177,7 +180,10 @@ impl Capability for BackgroundStart {
         if let Some(obj) = args.get("env").and_then(Value::as_object) {
             for (k, v) in obj {
                 let val = v.as_str().ok_or_else(|| {
-                    CapabilityError::invalid_args("background.start", format!("env.{k} must be a string."))
+                    CapabilityError::invalid_args(
+                        "background.start",
+                        format!("env.{k} must be a string."),
+                    )
                 })?;
                 env.insert(k.clone(), val.to_string());
             }
@@ -187,10 +193,7 @@ impl Capability for BackgroundStart {
 
         {
             let map = ctx.jobs.scripts.lock().unwrap();
-            let active = map
-                .values()
-                .filter(|j| !j.lock().unwrap().settled)
-                .count();
+            let active = map.values().filter(|j| !j.lock().unwrap().settled).count();
             if active >= MAX_ACTIVE_SCRIPTS {
                 return Err(CapabilityError::exec(
                     "JobLimitError",
@@ -216,9 +219,9 @@ impl Capability for BackgroundStart {
             });
         }
 
-        let mut child = cmd.spawn().map_err(|e| {
-            CapabilityError::exec("ProcessSpawnError", format!("{script}: {e}"))
-        })?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| CapabilityError::exec("ProcessSpawnError", format!("{script}: {e}")))?;
         let pid = child.id();
         let id = format!("bgsh_{}", &Uuid::new_v4().simple().to_string()[..12]);
         let cancel_token = CancellationToken::new();
@@ -251,7 +254,12 @@ impl Capability for BackgroundStart {
             .unwrap()
             .insert(id.clone(), Arc::clone(&job));
 
-        ctx.jobs.emit_event(&ctx.session_id, cant_protocol::daemon::DaemonEvent::JobUpdated { job: job.lock().unwrap().summary() });
+        ctx.jobs.emit_event(
+            &ctx.session_id,
+            cant_protocol::daemon::DaemonEvent::JobUpdated {
+                job: job.lock().unwrap().summary(),
+            },
+        );
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
         let job_out = Arc::clone(&job);
@@ -267,7 +275,13 @@ impl Capability for BackgroundStart {
                 }
                 let text = String::from_utf8_lossy(&buf[..n]).into_owned();
                 job_out.lock().unwrap().append(&text);
-                jobs_ev_out.emit_event(&sid_out, cant_protocol::daemon::DaemonEvent::JobOutput { id: id_out.clone(), chunk: text });
+                jobs_ev_out.emit_event(
+                    &sid_out,
+                    cant_protocol::daemon::DaemonEvent::JobOutput {
+                        id: id_out.clone(),
+                        chunk: text,
+                    },
+                );
             }
         });
         let job_err = Arc::clone(&job);
@@ -283,7 +297,13 @@ impl Capability for BackgroundStart {
                 }
                 let text = String::from_utf8_lossy(&buf[..n]).into_owned();
                 job_err.lock().unwrap().append(&text);
-                jobs_ev_err.emit_event(&sid_err, cant_protocol::daemon::DaemonEvent::JobOutput { id: id_err.clone(), chunk: text });
+                jobs_ev_err.emit_event(
+                    &sid_err,
+                    cant_protocol::daemon::DaemonEvent::JobOutput {
+                        id: id_err.clone(),
+                        chunk: text,
+                    },
+                );
             }
         });
 
@@ -365,7 +385,10 @@ impl Capability for BackgroundStart {
             };
 
             let final_summary = job_wait.lock().unwrap().summary();
-            jobs_mgr.emit_event(&final_session, cant_protocol::daemon::DaemonEvent::JobUpdated { job: final_summary });
+            jobs_mgr.emit_event(
+                &final_session,
+                cant_protocol::daemon::DaemonEvent::JobUpdated { job: final_summary },
+            );
             if let Some(n) = notice_opt {
                 jobs_mgr.push_notice(final_session, n);
             }
@@ -395,7 +418,10 @@ impl Capability for BackgroundOutput {
             .ok_or_else(|| CapabilityError::invalid_args("background.output", "Missing 'id'."))?;
         let filter = match args.get("filter").and_then(Value::as_str) {
             Some(pat) => Some(Regex::new(pat).map_err(|e| {
-                CapabilityError::invalid_args("background.output", format!("Invalid filter regex: {e}"))
+                CapabilityError::invalid_args(
+                    "background.output",
+                    format!("Invalid filter regex: {e}"),
+                )
             })?),
             None => None,
         };
@@ -406,7 +432,9 @@ impl Capability for BackgroundOutput {
             .unwrap()
             .get(id)
             .cloned()
-            .ok_or_else(|| CapabilityError::exec("JobNotFoundError", format!("No background script '{id}'.")))?;
+            .ok_or_else(|| {
+                CapabilityError::exec("JobNotFoundError", format!("No background script '{id}'."))
+            })?;
 
         let mut g = job.lock().unwrap();
         if g.session_id != ctx.session_id {
@@ -467,7 +495,9 @@ impl Capability for BackgroundStatus {
             .unwrap()
             .get(id)
             .cloned()
-            .ok_or_else(|| CapabilityError::exec("JobNotFoundError", format!("No background script '{id}'.")))?;
+            .ok_or_else(|| {
+                CapabilityError::exec("JobNotFoundError", format!("No background script '{id}'."))
+            })?;
         let g = job.lock().unwrap();
         if g.session_id != ctx.session_id {
             return Err(CapabilityError::exec(
@@ -562,7 +592,9 @@ impl Capability for BackgroundCancel {
             .unwrap()
             .get(id)
             .cloned()
-            .ok_or_else(|| CapabilityError::exec("JobNotFoundError", format!("No background script '{id}'.")))?;
+            .ok_or_else(|| {
+                CapabilityError::exec("JobNotFoundError", format!("No background script '{id}'."))
+            })?;
         {
             let g = job.lock().unwrap();
             if g.session_id != ctx.session_id {
@@ -631,7 +663,8 @@ pub fn register(catalog: &CapabilityCatalog) {
     catalog.register(Arc::new(BackgroundStatus(CapabilityMeta {
         tool_name: "__cant_background_status".into(),
         api_path: vec!["background".into(), "status".into()],
-        description: "Check status of a background script without advancing its output cursor.".into(),
+        description: "Check status of a background script without advancing its output cursor."
+            .into(),
         params_schema: json!({
             "type": "object",
             "additionalProperties": false,
@@ -663,7 +696,8 @@ pub fn register(catalog: &CapabilityCatalog) {
     catalog.register(Arc::new(BackgroundCancel(CapabilityMeta {
         tool_name: "__cant_background_cancel".into(),
         api_path: vec!["background".into(), "cancel".into()],
-        description: "Cancel a running background script and suppress its completion notification.".into(),
+        description: "Cancel a running background script and suppress its completion notification."
+            .into(),
         params_schema: json!({
             "type": "object",
             "additionalProperties": false,

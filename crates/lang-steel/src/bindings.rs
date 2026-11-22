@@ -60,7 +60,10 @@ pub fn kebab(value: &str) -> String {
         if c.is_ascii_uppercase() && i > 0 {
             let prev = chars[i - 1];
             let next_lower = chars.get(i + 1).is_some_and(|n| n.is_ascii_lowercase());
-            if prev.is_ascii_lowercase() || prev.is_ascii_digit() || (prev.is_ascii_uppercase() && next_lower) {
+            if prev.is_ascii_lowercase()
+                || prev.is_ascii_digit()
+                || (prev.is_ascii_uppercase() && next_lower)
+            {
                 out.push('-');
             }
         }
@@ -96,8 +99,10 @@ fn object_shape(schema: &Value, depth: usize) -> Option<ObjectShape> {
             if branches.is_empty() {
                 return None;
             }
-            let shapes: Option<Vec<ObjectShape>> =
-                branches.iter().map(|b| object_shape(b, depth + 1)).collect();
+            let shapes: Option<Vec<ObjectShape>> = branches
+                .iter()
+                .map(|b| object_shape(b, depth + 1))
+                .collect();
             let shapes = shapes?;
             let mut fields = Vec::new();
             let mut seen = HashSet::new();
@@ -109,7 +114,10 @@ fn object_shape(schema: &Value, depth: usize) -> Option<ObjectShape> {
                 }
             }
             let required = if key == "allOf" {
-                shapes.iter().flat_map(|s| s.required.iter().cloned()).collect()
+                shapes
+                    .iter()
+                    .flat_map(|s| s.required.iter().cloned())
+                    .collect()
             } else {
                 shapes[0]
                     .required

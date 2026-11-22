@@ -129,11 +129,13 @@ impl FileCoverageLedger {
         end_line: usize,
     ) -> bool {
         let mut guard = self.entries.lock().unwrap();
-        let entry = guard.entry(canonical_path).or_insert_with(|| CoverageEntry {
-            sha256: sha256.clone(),
-            total_lines,
-            ranges: Vec::new(),
-        });
+        let entry = guard
+            .entry(canonical_path)
+            .or_insert_with(|| CoverageEntry {
+                sha256: sha256.clone(),
+                total_lines,
+                ranges: Vec::new(),
+            });
         if entry.sha256 != sha256 || entry.total_lines != total_lines {
             entry.sha256 = sha256;
             entry.total_lines = total_lines;
@@ -163,9 +165,7 @@ impl FileCoverageLedger {
     }
 
     fn is_complete(entry: &CoverageEntry) -> bool {
-        entry.ranges.len() == 1
-            && entry.ranges[0].0 == 1
-            && entry.ranges[0].1 >= entry.total_lines
+        entry.ranges.len() == 1 && entry.ranges[0].0 == 1 && entry.ranges[0].1 >= entry.total_lines
     }
 }
 
@@ -230,7 +230,9 @@ impl CapabilityCatalog {
         guard
             .by_api_path
             .insert(meta.api_path.clone(), Arc::clone(&capability));
-        guard.by_tool_name.insert(meta.tool_name.clone(), capability);
+        guard
+            .by_tool_name
+            .insert(meta.tool_name.clone(), capability);
         guard.version += 1;
     }
 

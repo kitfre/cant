@@ -32,8 +32,8 @@ impl SteelLanguage {
         if let Some(path) = std::env::var_os("CANT_STEEL_RUNNER").filter(|s| !s.is_empty()) {
             return Ok(path.into());
         }
-        let executable = std::env::current_exe()
-            .map_err(|e| format!("Cannot locate cant executable: {e}"))?;
+        let executable =
+            std::env::current_exe().map_err(|e| format!("Cannot locate cant executable: {e}"))?;
         let sibling = executable.with_file_name("cant-steel-runner");
         if sibling.is_file() {
             return Ok(sibling);
@@ -95,8 +95,7 @@ impl GuestLanguage for SteelLanguage {
         };
         let has_path = |path: &[&str]| {
             metas.iter().any(|m| {
-                m.api_path.len() == path.len()
-                    && m.api_path.iter().zip(path).all(|(a, b)| a == b)
+                m.api_path.len() == path.len() && m.api_path.iter().zip(path).all(|(a, b)| a == b)
             })
         };
 
@@ -268,12 +267,30 @@ mod tests {
             meta(&["capabilities", "describe"]),
         ];
         let desc = lang.tool_description(&metas);
-        assert!(!desc.contains("delegate/start"), "unexpected delegate example: {desc}");
-        assert!(!desc.contains("agents/task"), "unexpected agents/task: {desc}");
-        assert!(!desc.contains("agents/node"), "unexpected agents/node: {desc}");
-        assert!(!desc.contains("agents/from"), "unexpected agents/from: {desc}");
-        assert!(!desc.contains("agents/artifact-from"), "unexpected agents/artifact-from: {desc}");
-        assert!(!desc.contains("delegated agent workflows"), "unexpected delegated intro: {desc}");
+        assert!(
+            !desc.contains("delegate/start"),
+            "unexpected delegate example: {desc}"
+        );
+        assert!(
+            !desc.contains("agents/task"),
+            "unexpected agents/task: {desc}"
+        );
+        assert!(
+            !desc.contains("agents/node"),
+            "unexpected agents/node: {desc}"
+        );
+        assert!(
+            !desc.contains("agents/from"),
+            "unexpected agents/from: {desc}"
+        );
+        assert!(
+            !desc.contains("agents/artifact-from"),
+            "unexpected agents/artifact-from: {desc}"
+        );
+        assert!(
+            !desc.contains("delegated agent workflows"),
+            "unexpected delegated intro: {desc}"
+        );
         assert!(desc.contains("background jobs"));
         assert!(desc.contains("(background/start \"cargo\" '(\"test\"))"));
         assert!(desc.contains("(replace-text old new)"));

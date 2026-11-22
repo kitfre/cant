@@ -6,7 +6,7 @@
 
 use cant_protocol::daemon::{JobSummary, WorkspaceSummary};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::path::Path;
 
 pub const STATUSLINE_RESOURCE_URI: &str = "ui://cant/statusline";
@@ -178,14 +178,15 @@ fn context_used_pct(ctx: &CodexContext) -> Option<u64> {
         }
     }
     match (ctx.used_tokens, ctx.context_window_size) {
-        (Some(used), Some(size)) if size > 0 => Some(((used as f64 / size as f64) * 100.0).round() as u64),
+        (Some(used), Some(size)) if size > 0 => {
+            Some(((used as f64 / size as f64) * 100.0).round() as u64)
+        }
         _ => None,
     }
 }
 
 pub fn render_statusline(state_val: &Value, cant: &CantStatusSnapshot) -> Value {
-    let state: CodexStatuslineState =
-        serde_json::from_value(state_val.clone()).unwrap_or_default();
+    let state: CodexStatuslineState = serde_json::from_value(state_val.clone()).unwrap_or_default();
     let mut children: Vec<UiNode> = Vec::new();
 
     // 1. Model + reasoning level
@@ -252,7 +253,10 @@ pub fn render_statusline(state_val: &Value, cant: &CantStatusSnapshot) -> Value 
         };
         children.push(bold_text_node("accent", badge));
     } else if running.len() > 1 {
-        children.push(bold_text_node("accent", format!("▶ {} jobs", running.len())));
+        children.push(bold_text_node(
+            "accent",
+            format!("▶ {} jobs", running.len()),
+        ));
     } else {
         let failed = cant
             .jobs
@@ -287,7 +291,7 @@ pub fn render_statusline(state_val: &Value, cant: &CantStatusSnapshot) -> Value 
         },
         children,
     })
-    .unwrap_or_else(|_| json!(null))
+    .unwrap_or(Value::Null)
 }
 
 #[cfg(test)]
@@ -363,7 +367,10 @@ mod tests {
             codex_statusline_session(&sample_state()).as_deref(),
             Some("codex-019b-thread-1")
         );
-        assert_eq!(codex_statusline_session(&json!({"thread": {"id": "  "}})), None);
+        assert_eq!(
+            codex_statusline_session(&json!({"thread": {"id": "  "}})),
+            None
+        );
         assert_eq!(codex_statusline_session(&json!({})), None);
     }
 
@@ -412,8 +419,14 @@ mod tests {
         assert!(text.contains("working"), "missing agent state in: {text}");
         assert!(text.contains("25%"), "missing context % in: {text}");
         assert!(text.contains("cant"), "missing cwd/cant in: {text}");
-        assert!(text.contains("repl g3"), "missing workspace generation in: {text}");
-        assert!(text.contains("▶ 2 jobs"), "missing running jobs badge in: {text}");
+        assert!(
+            text.contains("repl g3"),
+            "missing workspace generation in: {text}"
+        );
+        assert!(
+            text.contains("▶ 2 jobs"),
+            "missing running jobs badge in: {text}"
+        );
         assert!(text.contains("5h 64%"), "missing rate limit in: {text}");
     }
 
@@ -435,7 +448,10 @@ mod tests {
         let tree = render_statusline(&json!({}), &cant);
         assert_eq!(tree["type"], "row");
         let text = collect_text(&tree);
-        assert!(text.contains("▶ 1 job (build-check)"), "unexpected text: {text}");
+        assert!(
+            text.contains("▶ 1 job (build-check)"),
+            "unexpected text: {text}"
+        );
     }
 
     #[test]
@@ -458,6 +474,9 @@ mod tests {
         let tree = render_statusline(&state, &cant);
         let text = collect_text(&tree);
         assert!(!text.contains("ready"), "should omit ready state: {text}");
-        assert!(text.contains("1 failed"), "missing failed job badge: {text}");
+        assert!(
+            text.contains("1 failed"),
+            "missing failed job badge: {text}"
+        );
     }
 }

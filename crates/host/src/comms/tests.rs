@@ -45,10 +45,23 @@ impl GuestLanguage for TestLang {
     fn tool_description(&self, _: &[crate::capability::CapabilityMeta]) -> String {
         String::new()
     }
-    fn source_description(&self) -> &'static str { "" }
-    fn inputs_description(&self) -> &'static str { "" }
-    fn format_metadata(&self, value: &Value) -> String { value.to_string() }
-    fn post_describe(&self, _: &str, value: Value, _: &[crate::capability::CapabilityMeta]) -> Value { value }
+    fn source_description(&self) -> &'static str {
+        ""
+    }
+    fn inputs_description(&self) -> &'static str {
+        ""
+    }
+    fn format_metadata(&self, value: &Value) -> String {
+        value.to_string()
+    }
+    fn post_describe(
+        &self,
+        _: &str,
+        value: Value,
+        _: &[crate::capability::CapabilityMeta],
+    ) -> Value {
+        value
+    }
 }
 
 fn test_ctx(comms: Arc<CommsHub>, session_id: &str, cwd: &str) -> CallContext {
@@ -72,7 +85,11 @@ fn test_ctx(comms: Arc<CommsHub>, session_id: &str, cwd: &str) -> CallContext {
 #[test]
 fn auto_handles_disambiguate_same_repo_and_announce_updates_metadata() {
     let hub = Arc::new(CommsHub::new());
-    let a = hub.touch_peer("sess-a", Path::new("/code/frontend"), HarnessKind::Antigravity);
+    let a = hub.touch_peer(
+        "sess-a",
+        Path::new("/code/frontend"),
+        HarnessKind::Antigravity,
+    );
     let b = hub.touch_peer("sess-b", Path::new("/code/frontend"), HarnessKind::Pi);
     assert_eq!(a.handle, "frontend");
     assert_eq!(b.handle, "frontend-2");
@@ -91,7 +108,13 @@ fn auto_handles_disambiguate_same_repo_and_announce_updates_metadata() {
     assert_eq!(updated.tags, vec!["ui", "auth"]);
 
     // Claiming another live peer's handle fails cleanly
-    let conflict = hub.announce("sess-a", Path::new("/code/frontend"), Some("ui-reviewer"), None, None);
+    let conflict = hub.announce(
+        "sess-a",
+        Path::new("/code/frontend"),
+        Some("ui-reviewer"),
+        None,
+        None,
+    );
     assert!(conflict.is_err());
 
     // Filtering by query and tag works
@@ -168,8 +191,16 @@ fn stale_peers_are_hidden_by_default_unless_push_or_include_stale() {
 #[test]
 fn direct_channel_and_named_room_with_dual_watermarks() {
     let hub = Arc::new(CommsHub::new());
-    hub.touch_peer("backend", Path::new("/code/backend"), HarnessKind::Antigravity);
-    hub.touch_peer("frontend", Path::new("/code/frontend"), HarnessKind::Antigravity);
+    hub.touch_peer(
+        "backend",
+        Path::new("/code/backend"),
+        HarnessKind::Antigravity,
+    );
+    hub.touch_peer(
+        "frontend",
+        Path::new("/code/frontend"),
+        HarnessKind::Antigravity,
+    );
 
     // Open direct channel with initial message
     let opened = hub
@@ -254,7 +285,12 @@ fn direct_channel_and_named_room_with_dual_watermarks() {
     assert!(closed.closed);
     assert_eq!(closed.summary.as_deref(), Some("Done"));
     assert!(hub
-        .send_message("frontend", Path::new("/code/frontend"), "#api-v2", "late".into())
+        .send_message(
+            "frontend",
+            Path::new("/code/frontend"),
+            "#api-v2",
+            "late".into()
+        )
         .is_err());
 }
 
@@ -313,7 +349,12 @@ async fn push_subscriber_receives_channel_event_and_waiter_wakes_immediately() {
     );
 
     let send_res = hub
-        .send_message("pi-peer", Path::new("/code/pi"), &opened.channel.id, "pong agy".into())
+        .send_message(
+            "pi-peer",
+            Path::new("/code/pi"),
+            &opened.channel.id,
+            "pong agy".into(),
+        )
         .unwrap();
     assert_eq!(send_res.deliveries[0].status, DeliveryStatus::Woken);
 
@@ -331,30 +372,48 @@ async fn capabilities_round_trip_peers_and_channels() {
     let ctx_a = test_ctx(Arc::clone(&hub), "sess-a", "/code/alpha");
     let ctx_b = test_ctx(Arc::clone(&hub), "sess-b", "/code/beta");
 
-    let announce = ctx_a.catalog.get_by_api_path(&["peers".into(), "announce".into()]).expect("peers/announce registered");
+    let announce = ctx_a
+        .catalog
+        .get_by_api_path(&["peers".into(), "announce".into()])
+        .expect("peers/announce registered");
     let me_a = announce
         .call(&ctx_a, json!({ "name": "alpha", "topic": "api" }))
         .await
         .unwrap();
     assert_eq!(me_a["handle"], "alpha");
 
-    let peers_me = ctx_b.catalog.get_by_api_path(&["peers".into(), "me".into()]).expect("peers/me registered");
+    let peers_me = ctx_b
+        .catalog
+        .get_by_api_path(&["peers".into(), "me".into()])
+        .expect("peers/me registered");
     let me_b = peers_me.call(&ctx_b, json!({})).await.unwrap();
     assert_eq!(me_b["handle"], "beta");
 
-    let peers_list = ctx_a.catalog.get_by_api_path(&["peers".into(), "list".into()]).expect("peers/list registered");
+    let peers_list = ctx_a
+        .catalog
+        .get_by_api_path(&["peers".into(), "list".into()])
+        .expect("peers/list registered");
     let listed = peers_list.call(&ctx_a, json!({})).await.unwrap();
     assert_eq!(listed.as_array().unwrap().len(), 2);
 
-    let open = ctx_a.catalog.get_by_api_path(&["channels".into(), "open".into()]).expect("channels/open registered");
+    let open = ctx_a
+        .catalog
+        .get_by_api_path(&["channels".into(), "open".into()])
+        .expect("channels/open registered");
     let opened = open
         .call(&ctx_a, json!({ "to": "beta", "message": "hello beta" }))
         .await
         .unwrap();
     let ch_id = opened["channel"]["id"].as_str().unwrap().to_string();
 
-    let read = ctx_b.catalog.get_by_api_path(&["channels".into(), "read".into()]).expect("channels/read registered");
-    let got = read.call(&ctx_b, json!({ "channel": ch_id })).await.unwrap();
+    let read = ctx_b
+        .catalog
+        .get_by_api_path(&["channels".into(), "read".into()])
+        .expect("channels/read registered");
+    let got = read
+        .call(&ctx_b, json!({ "channel": ch_id }))
+        .await
+        .unwrap();
     assert_eq!(got["messages"].as_array().unwrap().len(), 1);
     assert_eq!(got["messages"][0]["body"], "hello beta");
 }
@@ -507,7 +566,10 @@ fn reopened_room_moves_alias_while_preserving_closed_history_by_id() {
     assert_eq!(alias_summary.id, r2.channel.id);
     assert!(!alias_summary.closed);
     assert_eq!(
-        alias_msgs.iter().map(|m| m.body.as_str()).collect::<Vec<_>>(),
+        alias_msgs
+            .iter()
+            .map(|m| m.body.as_str())
+            .collect::<Vec<_>>(),
         vec!["v2 message"]
     );
 
@@ -612,7 +674,11 @@ async fn direct_threads_enforce_membership_across_all_operations() {
     let hub = Arc::new(CommsHub::new());
     hub.touch_peer("alice", Path::new("/code/alice"), HarnessKind::Antigravity);
     hub.touch_peer("bob", Path::new("/code/bob"), HarnessKind::Antigravity);
-    hub.touch_peer("charlie", Path::new("/code/charlie"), HarnessKind::Antigravity);
+    hub.touch_peer(
+        "charlie",
+        Path::new("/code/charlie"),
+        HarnessKind::Antigravity,
+    );
 
     let dm = hub
         .open_channel(
@@ -659,7 +725,9 @@ async fn direct_threads_enforce_membership_across_all_operations() {
     // Nonmember and sessionless callers cannot read, join, leave, send, wait, close, or attach workers to a DM.
     assert!(hub.read_channel(Some("charlie"), &dm, false, 50).is_err());
     assert!(hub.read_channel(None, &dm, false, 50).is_err());
-    assert!(hub.join_channel("charlie", Path::new("/code/charlie"), &dm).is_err());
+    assert!(hub
+        .join_channel("charlie", Path::new("/code/charlie"), &dm)
+        .is_err());
     assert!(hub.leave_channel("charlie", &dm).is_err());
     assert!(hub
         .send_message("charlie", Path::new("/code/charlie"), &dm, "intrude".into())
@@ -710,8 +778,14 @@ async fn direct_threads_enforce_membership_across_all_operations() {
         .all(|p| p.id != "worker-snoop"));
 
     // Original participants can still list, read, reply, and close the DM.
-    assert!(hub.list_channels(Some("alice"), false).iter().any(|c| c.id == dm));
-    assert!(hub.list_channels(Some("bob"), false).iter().any(|c| c.id == dm));
+    assert!(hub
+        .list_channels(Some("alice"), false)
+        .iter()
+        .any(|c| c.id == dm));
+    assert!(hub
+        .list_channels(Some("bob"), false)
+        .iter()
+        .any(|c| c.id == dm));
     let (_, msgs) = hub.read_channel(Some("bob"), &dm, true, 50).unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0].body, "secret dm");
@@ -722,9 +796,16 @@ async fn direct_threads_enforce_membership_across_all_operations() {
     assert_eq!(alice_msgs.len(), 1);
     assert_eq!(alice_msgs[0].body, "reply");
 
-    hub.close_channel("alice", &dm, Some("done".into())).unwrap();
-    assert!(hub.list_channels(Some("alice"), true).iter().any(|c| c.id == dm));
-    assert!(!hub.list_channels(Some("charlie"), true).iter().any(|c| c.id == dm));
+    hub.close_channel("alice", &dm, Some("done".into()))
+        .unwrap();
+    assert!(hub
+        .list_channels(Some("alice"), true)
+        .iter()
+        .any(|c| c.id == dm));
+    assert!(!hub
+        .list_channels(Some("charlie"), true)
+        .iter()
+        .any(|c| c.id == dm));
     // Re-attaching a closed DM by ID must fail instead of creating a room named #ch-N.
     assert!(hub
         .prepare_shared_channels("alice", Path::new("/code/alice"), &refs, "auto")

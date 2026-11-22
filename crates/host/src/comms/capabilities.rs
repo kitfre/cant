@@ -265,8 +265,7 @@ impl Capability for ChannelsClose {
             .comms
             .close_channel(&ctx.session_id, ch, summary)
             .map_err(|e| CapabilityError::exec("CommsError", e))?;
-        serde_json::to_value(closed)
-            .map_err(|e| CapabilityError::exec("CommsError", e.to_string()))
+        serde_json::to_value(closed).map_err(|e| CapabilityError::exec("CommsError", e.to_string()))
     }
 }
 
@@ -295,7 +294,8 @@ pub fn register(catalog: &CapabilityCatalog) {
         meta: CapabilityMeta {
             tool_name: "__cant_peers_me".into(),
             api_path: vec!["peers".into(), "me".into()],
-            description: "Return this session's own peer identity, handle, and reachability.".into(),
+            description: "Return this session's own peer identity, handle, and reachability."
+                .into(),
             params_schema: json!({
                 "type": "object",
                 "additionalProperties": false,
@@ -469,7 +469,8 @@ pub fn register(catalog: &CapabilityCatalog) {
         meta: CapabilityMeta {
             tool_name: "__cant_channels_close".into(),
             api_path: vec!["channels".into(), "close".into()],
-            description: "Close a channel with an optional #:summary once coordination is complete.".into(),
+            description:
+                "Close a channel with an optional #:summary once coordination is complete.".into(),
             params_schema: json!({
                 "type": "object",
                 "additionalProperties": false,

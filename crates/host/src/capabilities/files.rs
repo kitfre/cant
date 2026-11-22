@@ -79,8 +79,9 @@ fn is_hidden_rel(path: &Path) -> bool {
 fn build_globset(patterns: &[String]) -> Result<GlobSet, CapabilityError> {
     let mut builder = GlobSetBuilder::new();
     for pat in patterns {
-        let g = Glob::new(pat)
-            .map_err(|e| CapabilityError::invalid_args("files", format!("Invalid glob '{pat}': {e}")))?;
+        let g = Glob::new(pat).map_err(|e| {
+            CapabilityError::invalid_args("files", format!("Invalid glob '{pat}': {e}"))
+        })?;
         builder.add(g);
         if !pat.starts_with("**/") {
             if let Ok(g2) = Glob::new(&format!("**/{pat}")) {
@@ -88,9 +89,9 @@ fn build_globset(patterns: &[String]) -> Result<GlobSet, CapabilityError> {
             }
         }
     }
-    builder
-        .build()
-        .map_err(|e| CapabilityError::invalid_args("files", format!("Failed building globset: {e}")))
+    builder.build().map_err(|e| {
+        CapabilityError::invalid_args("files", format!("Failed building globset: {e}"))
+    })
 }
 
 fn read_single_file(
@@ -129,9 +130,8 @@ fn read_single_file(
                 "File appears to be binary (contains NUL bytes); Cant file APIs handle UTF-8 text only.",
             ));
         }
-        let text = String::from_utf8(raw.clone()).map_err(|_| {
-            CapabilityError::exec("FileReadError", "File is not valid UTF-8 text.")
-        })?;
+        let text = String::from_utf8(raw.clone())
+            .map_err(|_| CapabilityError::exec("FileReadError", "File is not valid UTF-8 text."))?;
         let digest = sha256_hex(&raw);
         let total_lines = text.split('\n').count();
         ctx.file_coverage
@@ -156,7 +156,7 @@ fn read_single_file(
             "offset must be >= 1",
         ));
     }
-    if req_limit < 1 || req_limit > MAX_CHUNK_LINES {
+    if !(1..=MAX_CHUNK_LINES).contains(&req_limit) {
         return Err(CapabilityError::invalid_args(
             "files.read",
             format!("limit must be between 1 and {MAX_CHUNK_LINES}"),
@@ -200,9 +200,13 @@ fn read_single_file(
     }
     let end_line = start_line + collected.len() - 1;
     let complete = start_line == 1 && end_line == total_lines;
-    let coverage_complete =
-        ctx.file_coverage
-            .record_chunk(canonical, digest.clone(), total_lines, start_line, end_line);
+    let coverage_complete = ctx.file_coverage.record_chunk(
+        canonical,
+        digest.clone(),
+        total_lines,
+        start_line,
+        end_line,
+    );
 
     let mut obj = json!({
         "text": collected.join("\n"),
@@ -279,12 +283,17 @@ impl Capability for FilesRead {
         &self.0
     }
     async fn call(&self, ctx: &CallContext, args: Value) -> Result<Value, CapabilityError> {
-        let path = args
-            .get("path")
-            .and_then(Value::as_str)
-            .ok_or_else(|| CapabilityError::invalid_args("files.read", "Missing required 'path'."))?;
-        let offset = args.get("offset").and_then(Value::as_u64).map(|v| v as usize);
-        let limit = args.get("limit").and_then(Value::as_u64).map(|v| v as usize);
+        let path = args.get("path").and_then(Value::as_str).ok_or_else(|| {
+            CapabilityError::invalid_args("files.read", "Missing required 'path'.")
+        })?;
+        let offset = args
+            .get("offset")
+            .and_then(Value::as_u64)
+            .map(|v| v as usize);
+        let limit = args
+            .get("limit")
+            .and_then(Value::as_u64)
+            .map(|v| v as usize);
         let ctx = ctx.clone();
         let path = path.to_string();
         tokio::task::spawn_blocking(move || read_single_file(&ctx, &path, offset, limit))
@@ -303,12 +312,14 @@ impl Capability for FilesReadMany {
         let paths: Vec<String> = args
             .get("paths")
             .and_then(Value::as_array)
-            .ok_or_else(|| CapabilityError::invalid_args("files.readMany", "Missing 'paths' array."))?
+            .ok_or_else(|| {
+                CapabilityError::invalid_args("files.readMany", "Missing 'paths' array.")
+            })?
             .iter()
             .map(|v| {
-                v.as_str()
-                    .map(ToString::to_string)
-                    .ok_or_else(|| CapabilityError::invalid_args("files.readMany", "Each path must be a string."))
+                v.as_str().map(ToString::to_string).ok_or_else(|| {
+                    CapabilityError::invalid_args("files.readMany", "Each path must be a string.")
+                })
             })
             .collect::<Result<_, _>>()?;
         if paths.is_empty() || paths.len() > MAX_BATCH_ITEMS {
@@ -373,7 +384,10 @@ impl Capability for FilesWrite {
                 .open(&target)
                 .map_err(|e| {
                     if e.kind() == std::io::ErrorKind::AlreadyExists {
-                        CapabilityError::exec("FileExistsError", format!("File already exists: {path}"))
+                        CapabilityError::exec(
+                            "FileExistsError",
+                            format!("File already exists: {path}"),
+                        )
                     } else {
                         CapabilityError::exec("FileWriteError", e.to_string())
                     }
@@ -419,7 +433,9 @@ impl Capability for FilesReplace {
         let expected_sha = args
             .get("expectedSha256")
             .and_then(Value::as_str)
-            .ok_or_else(|| CapabilityError::invalid_args("files.replace", "Missing 'expectedSha256'."))?
+            .ok_or_else(|| {
+                CapabilityError::invalid_args("files.replace", "Missing 'expectedSha256'.")
+            })?
             .to_string();
         if expected_sha.len() != 64 || !expected_sha.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(CapabilityError::invalid_args(
@@ -543,7 +559,10 @@ impl Capability for FilesEdit {
                 if w[1].1 < w[0].2 {
                     return Err(CapabilityError::exec(
                         "FileEditError",
-                        format!("edits[{}].oldText overlaps another exact replacement", w[1].0),
+                        format!(
+                            "edits[{}].oldText overlaps another exact replacement",
+                            w[1].0
+                        ),
                     ));
                 }
             }
@@ -560,8 +579,11 @@ impl Capability for FilesEdit {
                 atomic_replace(&target, &content, &before_sha)?;
             }
             if was_complete {
-                ctx.file_coverage
-                    .record_complete(canonical, digest.clone(), content.split('\n').count());
+                ctx.file_coverage.record_complete(
+                    canonical,
+                    digest.clone(),
+                    content.split('\n').count(),
+                );
             }
             Ok(json!({
                 "path": path,
@@ -583,10 +605,25 @@ impl Capability for FilesList {
         &self.0
     }
     async fn call(&self, ctx: &CallContext, args: Value) -> Result<Value, CapabilityError> {
-        let rel_path = args.get("path").and_then(Value::as_str).unwrap_or(".").to_string();
-        let depth = args.get("depth").and_then(Value::as_u64).unwrap_or(1).clamp(1, 10) as usize;
-        let kind = args.get("kind").and_then(Value::as_str).unwrap_or("all").to_string();
-        let include_hidden = args.get("includeHidden").and_then(Value::as_bool).unwrap_or(true);
+        let rel_path = args
+            .get("path")
+            .and_then(Value::as_str)
+            .unwrap_or(".")
+            .to_string();
+        let depth = args
+            .get("depth")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .clamp(1, 10) as usize;
+        let kind = args
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or("all")
+            .to_string();
+        let include_hidden = args
+            .get("includeHidden")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
         let full_path = args.get("pathFormat").and_then(Value::as_str) == Some("full");
         let limit = args
             .get("limit")
@@ -600,7 +637,11 @@ impl Capability for FilesList {
         let excludes: Vec<String> = args
             .get("exclude")
             .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(|v| v.as_str().map(ToString::to_string)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(ToString::to_string))
+                    .collect()
+            })
             .unwrap_or_default();
 
         let ctx = ctx.clone();
@@ -682,15 +723,25 @@ impl Capability for FilesList {
     }
 }
 
+struct FindOptions<'a> {
+    limit: usize,
+    max_depth: Option<usize>,
+    excludes: &'a [String],
+    include_hidden: bool,
+    full_path: bool,
+}
+
 fn find_paths_sync(
     cwd: &Path,
     pattern: &str,
     rel_dir: &str,
-    limit: usize,
-    max_depth: Option<usize>,
-    excludes: &[String],
-    include_hidden: bool,
-    full_path: bool,
+    FindOptions {
+        limit,
+        max_depth,
+        excludes,
+        include_hidden,
+        full_path,
+    }: FindOptions<'_>,
 ) -> Result<(Vec<String>, bool), CapabilityError> {
     let root = resolve_path(cwd, rel_dir)?;
     let matcher = build_globset(&[pattern.to_string()])?;
@@ -734,11 +785,7 @@ fn find_paths_sync(
             limit_reached = true;
             break;
         }
-        paths.push(if full_path {
-            to_posix(abs)
-        } else {
-            rel_posix
-        });
+        paths.push(if full_path { to_posix(abs) } else { rel_posix });
     }
     Ok((paths, limit_reached))
 }
@@ -755,19 +802,33 @@ impl Capability for FilesFind {
             .and_then(Value::as_str)
             .ok_or_else(|| CapabilityError::invalid_args("files.find", "Missing 'pattern'."))?
             .to_string();
-        let rel_dir = args.get("path").and_then(Value::as_str).unwrap_or(".").to_string();
+        let rel_dir = args
+            .get("path")
+            .and_then(Value::as_str)
+            .unwrap_or(".")
+            .to_string();
         let limit = args
             .get("limit")
             .and_then(Value::as_u64)
             .unwrap_or(DEFAULT_FIND_LIMIT as u64)
             .clamp(1, MAX_SEARCH_RESULTS as u64) as usize;
-        let max_depth = args.get("maxDepth").and_then(Value::as_u64).map(|d| d as usize);
-        let include_hidden = args.get("includeHidden").and_then(Value::as_bool).unwrap_or(true);
+        let max_depth = args
+            .get("maxDepth")
+            .and_then(Value::as_u64)
+            .map(|d| d as usize);
+        let include_hidden = args
+            .get("includeHidden")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
         let full_path = args.get("pathFormat").and_then(Value::as_str) == Some("full");
         let excludes: Vec<String> = args
             .get("exclude")
             .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(|v| v.as_str().map(ToString::to_string)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(ToString::to_string))
+                    .collect()
+            })
             .unwrap_or_default();
         let cwd = ctx.cwd.clone();
         tokio::task::spawn_blocking(move || {
@@ -775,11 +836,13 @@ impl Capability for FilesFind {
                 &cwd,
                 &pattern,
                 &rel_dir,
-                limit,
-                max_depth,
-                &excludes,
-                include_hidden,
-                full_path,
+                FindOptions {
+                    limit,
+                    max_depth,
+                    excludes: &excludes,
+                    include_hidden,
+                    full_path,
+                },
             )?;
             Ok(json!({ "paths": paths, "limitReached": limit_reached }))
         })
@@ -798,12 +861,17 @@ impl Capability for FilesFindMany {
         let patterns: Vec<String> = args
             .get("patterns")
             .and_then(Value::as_array)
-            .ok_or_else(|| CapabilityError::invalid_args("files.findMany", "Missing 'patterns' array."))?
+            .ok_or_else(|| {
+                CapabilityError::invalid_args("files.findMany", "Missing 'patterns' array.")
+            })?
             .iter()
             .map(|v| {
-                v.as_str()
-                    .map(ToString::to_string)
-                    .ok_or_else(|| CapabilityError::invalid_args("files.findMany", "Each pattern must be a string."))
+                v.as_str().map(ToString::to_string).ok_or_else(|| {
+                    CapabilityError::invalid_args(
+                        "files.findMany",
+                        "Each pattern must be a string.",
+                    )
+                })
             })
             .collect::<Result<_, _>>()?;
         if patterns.is_empty() || patterns.len() > MAX_BATCH_ITEMS {
@@ -812,19 +880,33 @@ impl Capability for FilesFindMany {
                 format!("patterns must contain 1..={MAX_BATCH_ITEMS} entries."),
             ));
         }
-        let rel_dir = args.get("path").and_then(Value::as_str).unwrap_or(".").to_string();
+        let rel_dir = args
+            .get("path")
+            .and_then(Value::as_str)
+            .unwrap_or(".")
+            .to_string();
         let limit_per = args
             .get("limitPerPattern")
             .and_then(Value::as_u64)
             .unwrap_or(DEFAULT_BATCH_FIND_LIMIT as u64)
             .clamp(1, MAX_BATCH_FIND_LIMIT as u64) as usize;
-        let max_depth = args.get("maxDepth").and_then(Value::as_u64).map(|d| d as usize);
-        let include_hidden = args.get("includeHidden").and_then(Value::as_bool).unwrap_or(true);
+        let max_depth = args
+            .get("maxDepth")
+            .and_then(Value::as_u64)
+            .map(|d| d as usize);
+        let include_hidden = args
+            .get("includeHidden")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
         let full_path = args.get("pathFormat").and_then(Value::as_str) == Some("full");
         let excludes: Vec<String> = args
             .get("exclude")
             .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(|v| v.as_str().map(ToString::to_string)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(ToString::to_string))
+                    .collect()
+            })
             .unwrap_or_default();
         let cwd = ctx.cwd.clone();
         tokio::task::spawn_blocking(move || {
@@ -834,11 +916,7 @@ impl Capability for FilesFindMany {
                     &cwd,
                     &pattern,
                     &rel_dir,
-                    limit_per,
-                    max_depth,
-                    &excludes,
-                    include_hidden,
-                    full_path,
+                    FindOptions { limit: limit_per, max_depth, excludes: &excludes, include_hidden, full_path },
                 )?;
                 if limit_reached {
                     return Err(CapabilityError::exec(
@@ -874,10 +952,23 @@ impl Capability for FilesGrep {
             .and_then(Value::as_str)
             .ok_or_else(|| CapabilityError::invalid_args("files.grep", "Missing 'pattern'."))?
             .to_string();
-        let rel_path = args.get("path").and_then(Value::as_str).unwrap_or(".").to_string();
-        let glob = args.get("glob").and_then(Value::as_str).map(ToString::to_string);
-        let ignore_case = args.get("ignoreCase").and_then(Value::as_bool).unwrap_or(false);
-        let literal = args.get("literal").and_then(Value::as_bool).unwrap_or(false);
+        let rel_path = args
+            .get("path")
+            .and_then(Value::as_str)
+            .unwrap_or(".")
+            .to_string();
+        let glob = args
+            .get("glob")
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
+        let ignore_case = args
+            .get("ignoreCase")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let literal = args
+            .get("literal")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         let limit = args
             .get("limit")
             .and_then(Value::as_u64)
@@ -892,13 +983,15 @@ impl Capability for FilesGrep {
         let re = RegexBuilder::new(&regex_pat)
             .case_insensitive(ignore_case)
             .build()
-            .map_err(|e| CapabilityError::invalid_args("files.grep", format!("Invalid regex: {e}")))?;
+            .map_err(|e| {
+                CapabilityError::invalid_args("files.grep", format!("Invalid regex: {e}"))
+            })?;
 
         let cwd = ctx.cwd.clone();
         tokio::task::spawn_blocking(move || {
             let root = resolve_path(&cwd, &rel_path)?;
             let glob_matcher = match glob {
-                Some(ref g) => Some(build_globset(&[g.clone()])?),
+                Some(ref g) => Some(build_globset(std::slice::from_ref(g))?),
                 None => None,
             };
 
@@ -906,15 +999,21 @@ impl Capability for FilesGrep {
             let mut limit_reached = false;
 
             let mut search_file = |file_path: &Path, display_path: String| -> bool {
-                let Ok(meta) = fs::metadata(file_path) else { return false };
+                let Ok(meta) = fs::metadata(file_path) else {
+                    return false;
+                };
                 if !meta.is_file() || meta.len() > MAX_GREP_FILE_BYTES {
                     return false;
                 }
-                let Ok(bytes) = fs::read(file_path) else { return false };
+                let Ok(bytes) = fs::read(file_path) else {
+                    return false;
+                };
                 if bytes.contains(&0) {
                     return false;
                 }
-                let Ok(text) = std::str::from_utf8(&bytes) else { return false };
+                let Ok(text) = std::str::from_utf8(&bytes) else {
+                    return false;
+                };
                 for (idx, line) in text.split('\n').enumerate() {
                     if let Some(m) = re.find(line) {
                         if matches.len() >= limit {

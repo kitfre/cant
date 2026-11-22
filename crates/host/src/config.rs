@@ -33,9 +33,12 @@ impl CantConfig {
                     .map(|p| PathBuf::from(p).join("cant").join("config.json"))
             })
             .or_else(|| {
-                std::env::var("HOME")
-                    .ok()
-                    .map(|h| PathBuf::from(h).join(".config").join("cant").join("config.json"))
+                std::env::var("HOME").ok().map(|h| {
+                    PathBuf::from(h)
+                        .join(".config")
+                        .join("cant")
+                        .join("config.json")
+                })
             });
         let Some(p) = path else {
             return Self::default();

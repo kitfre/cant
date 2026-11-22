@@ -13,16 +13,22 @@ use cant_host::language::LanguageRegistry;
 use cant_host::mcp::{run_mcp_stdio, McpOptions};
 use cant_host::repl::ReplManager;
 use cant_lang_steel::SteelLanguage;
-use cant_protocol::daemon::{DaemonRequest, DaemonResponse, ReplRequest, WorkspaceKey, WorkspaceSummary};
+use cant_protocol::daemon::{
+    DaemonRequest, DaemonResponse, ReplRequest, WorkspaceKey, WorkspaceSummary,
+};
 use cant_protocol::runner::ReplOrigin;
 use clap::{Parser, Subcommand};
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[derive(Parser)]
-#[command(name = "cant", version, about = "Local polyglot REPL host, jobs daemon & MCP server")]
+#[command(
+    name = "cant",
+    version,
+    about = "Local polyglot REPL host, jobs daemon & MCP server"
+)]
 struct Cli {
     /// Override daemon Unix socket path (defaults to $CANT_SOCKET or OS runtime dir)
     #[arg(long, global = true)]
@@ -207,7 +213,10 @@ fn build_manager(cfg: &CantConfig) -> Arc<ReplManager> {
         AgyWorkerDriver::default().with_default_model(cfg.worker_model.clone()),
     ));
     drivers.register(Arc::new(CodexWorkerDriver::new(cfg.worker_model.clone())));
-    drivers.register(Arc::new(AdapterWorkerDriver::new("pi", Arc::clone(&adapters))));
+    drivers.register(Arc::new(AdapterWorkerDriver::new(
+        "pi",
+        Arc::clone(&adapters),
+    )));
     let jobs = Arc::new(JobManager::new(Arc::new(drivers)));
 
     let catalog = Arc::new(CapabilityCatalog::new());
@@ -270,13 +279,19 @@ async fn main() {
             Err(e) => Err(e),
         },
         Commands::Peers { all } => {
-            match send_daemon_request(&socket, &DaemonRequest::ListPeers { include_stale: all }).await {
+            match send_daemon_request(&socket, &DaemonRequest::ListPeers { include_stale: all })
+                .await
+            {
                 Ok(DaemonResponse::Peers { peers }) => {
                     if peers.is_empty() {
                         println!("No active peers.");
                     } else {
                         for p in peers {
-                            let topic = p.topic.as_deref().map(|t| format!(" — {t}")).unwrap_or_default();
+                            let topic = p
+                                .topic
+                                .as_deref()
+                                .map(|t| format!(" — {t}"))
+                                .unwrap_or_default();
                             let stale = if p.stale { " [stale]" } else { "" };
                             println!(
                                 "{:<18} {:<11} {:<10} {}{stale}{topic}",
@@ -294,77 +309,83 @@ async fn main() {
                 Err(e) => Err(e),
             }
         }
-        Commands::Channels { session, action } => match action.unwrap_or(ChannelsCommand::List { all: false }) {
-            ChannelsCommand::List { all } => {
-                match send_daemon_request(
-                    &socket,
-                    &DaemonRequest::ListChannels {
-                        session_id: session,
-                        include_closed: all,
-                    },
-                )
-                .await
-                {
-                    Ok(DaemonResponse::Channels { channels }) => {
-                        if channels.is_empty() {
-                            println!("No channels.");
-                        } else {
-                            for c in channels {
-                                let state = if c.closed { "closed" } else { "open" };
-                                let label = match c.name.as_deref() {
-                                    Some(name) => format!("{} (#{name})", c.id),
-                                    None => c.id.clone(),
-                                };
-                                let topic = c.topic.as_deref().map(|t| format!(" — {t}")).unwrap_or_default();
-                                println!(
-                                    "{:<24} {:<6} {:>3} msgs  [{}]{topic}",
-                                    label,
-                                    state,
-                                    c.message_count,
-                                    c.members.join(", ")
-                                );
+        Commands::Channels { session, action } => {
+            match action.unwrap_or(ChannelsCommand::List { all: false }) {
+                ChannelsCommand::List { all } => {
+                    match send_daemon_request(
+                        &socket,
+                        &DaemonRequest::ListChannels {
+                            session_id: session,
+                            include_closed: all,
+                        },
+                    )
+                    .await
+                    {
+                        Ok(DaemonResponse::Channels { channels }) => {
+                            if channels.is_empty() {
+                                println!("No channels.");
+                            } else {
+                                for c in channels {
+                                    let state = if c.closed { "closed" } else { "open" };
+                                    let label = match c.name.as_deref() {
+                                        Some(name) => format!("{} (#{name})", c.id),
+                                        None => c.id.clone(),
+                                    };
+                                    let topic = c
+                                        .topic
+                                        .as_deref()
+                                        .map(|t| format!(" — {t}"))
+                                        .unwrap_or_default();
+                                    println!(
+                                        "{:<24} {:<6} {:>3} msgs  [{}]{topic}",
+                                        label,
+                                        state,
+                                        c.message_count,
+                                        c.members.join(", ")
+                                    );
+                                }
                             }
+                            Ok(())
                         }
-                        Ok(())
+                        Ok(DaemonResponse::Error { message }) => Err(message),
+                        Ok(_) => Err("Unexpected daemon response.".into()),
+                        Err(e) => Err(e),
                     }
-                    Ok(DaemonResponse::Error { message }) => Err(message),
-                    Ok(_) => Err("Unexpected daemon response.".into()),
-                    Err(e) => Err(e),
+                }
+                ChannelsCommand::Read { channel, limit } => {
+                    match send_daemon_request(
+                        &socket,
+                        &DaemonRequest::ChannelRead {
+                            channel,
+                            session_id: session,
+                            limit,
+                        },
+                    )
+                    .await
+                    {
+                        Ok(DaemonResponse::ChannelMessages { channel, messages }) => {
+                            let label = match channel.name.as_deref() {
+                                Some(name) => format!("{} (#{name})", channel.id),
+                                None => channel.id.clone(),
+                            };
+                            println!(
+                                "=== {} ({} msgs, members: {}) ===",
+                                label,
+                                channel.message_count,
+                                channel.members.join(", ")
+                            );
+                            for m in messages {
+                                println!("#{:<3} {}: {}", m.seq, m.from_handle, m.body);
+                            }
+                            Ok(())
+                        }
+                        Ok(DaemonResponse::Error { message }) => Err(message),
+                        Ok(_) => Err("Unexpected daemon response.".into()),
+                        Err(e) => Err(e),
+                    }
                 }
             }
-            ChannelsCommand::Read { channel, limit } => {
-                match send_daemon_request(
-                    &socket,
-                    &DaemonRequest::ChannelRead {
-                        channel,
-                        session_id: session,
-                        limit,
-                    },
-                )
-                .await
-                {
-                    Ok(DaemonResponse::ChannelMessages { channel, messages }) => {
-                        let label = match channel.name.as_deref() {
-                            Some(name) => format!("{} (#{name})", channel.id),
-                            None => channel.id.clone(),
-                        };
-                        println!(
-                            "=== {} ({} msgs, members: {}) ===",
-                            label,
-                            channel.message_count,
-                            channel.members.join(", ")
-                        );
-                        for m in messages {
-                            println!("#{:<3} {}: {}", m.seq, m.from_handle, m.body);
-                        }
-                        Ok(())
-                    }
-                    Ok(DaemonResponse::Error { message }) => Err(message),
-                    Ok(_) => Err("Unexpected daemon response.".into()),
-                    Err(e) => Err(e),
-                }
-            }
-        },
+        }
         Commands::Say {
             target,
             message,
@@ -386,8 +407,14 @@ async fn main() {
             )
             .await
             {
-                Ok(DaemonResponse::ChannelSent { channel_id, message }) => {
-                    println!("Sent #{} to {} as {}.", message.seq, channel_id, message.from_handle);
+                Ok(DaemonResponse::ChannelSent {
+                    channel_id,
+                    message,
+                }) => {
+                    println!(
+                        "Sent #{} to {} as {}.",
+                        message.seq, channel_id, message.from_handle
+                    );
                     Ok(())
                 }
                 Ok(DaemonResponse::Error { message }) => Err(message),
@@ -408,36 +435,40 @@ async fn main() {
             session: None,
             attach: false,
         }) {
-            JobsCommand::List { session, attach } => async {
-                let session_id = if attach && session.is_none() {
-                    let cwd = std::env::current_dir()
-                        .unwrap_or_else(|_| PathBuf::from("."))
-                        .to_string_lossy()
-                        .into_owned();
-                    lookup_attached_session(&socket, &cwd).await?
-                } else {
-                    session
-                };
-                match send_daemon_request(&socket, &DaemonRequest::ListJobs { session_id }).await {
-                    Ok(DaemonResponse::Jobs { jobs }) => {
-                        if jobs.is_empty() {
-                            println!("No jobs.");
-                        } else {
-                            for j in jobs {
-                                println!(
-                                    "{:<18} {:<9} {:<10} {:>6}ms  {} — {}",
-                                    j.id, j.kind, j.status, j.elapsed_ms, j.name, j.summary
-                                );
+            JobsCommand::List { session, attach } => {
+                async {
+                    let session_id = if attach && session.is_none() {
+                        let cwd = std::env::current_dir()
+                            .unwrap_or_else(|_| PathBuf::from("."))
+                            .to_string_lossy()
+                            .into_owned();
+                        lookup_attached_session(&socket, &cwd).await?
+                    } else {
+                        session
+                    };
+                    match send_daemon_request(&socket, &DaemonRequest::ListJobs { session_id })
+                        .await
+                    {
+                        Ok(DaemonResponse::Jobs { jobs }) => {
+                            if jobs.is_empty() {
+                                println!("No jobs.");
+                            } else {
+                                for j in jobs {
+                                    println!(
+                                        "{:<18} {:<9} {:<10} {:>6}ms  {} — {}",
+                                        j.id, j.kind, j.status, j.elapsed_ms, j.name, j.summary
+                                    );
+                                }
                             }
+                            Ok(())
                         }
-                        Ok(())
+                        Ok(DaemonResponse::Error { message }) => Err(message),
+                        Ok(_) => Err("Unexpected daemon response.".into()),
+                        Err(e) => Err(e),
                     }
-                    Ok(DaemonResponse::Error { message }) => Err(message),
-                    Ok(_) => Err("Unexpected daemon response.".into()),
-                    Err(e) => Err(e),
                 }
+                .await
             }
-            .await,
             JobsCommand::Tail { id, max_bytes } => {
                 match send_daemon_request(
                     &socket,
@@ -476,7 +507,7 @@ async fn main() {
                         session_id: None,
                     },
                 )
-                    .await
+                .await
                 {
                     Ok(DaemonResponse::Ok) => {
                         println!("Cancelled job {id}.");
@@ -604,9 +635,8 @@ async fn main() {
 
 fn resolve_attached_session(workspaces: &[WorkspaceSummary], cwd: &str) -> Option<String> {
     let target = PathBuf::from(cwd);
-    let matches_cwd = |ws: &WorkspaceSummary| {
-        ws.cwd == cwd || target.starts_with(PathBuf::from(&ws.cwd))
-    };
+    let matches_cwd =
+        |ws: &WorkspaceSummary| ws.cwd == cwd || target.starts_with(PathBuf::from(&ws.cwd));
 
     // 1. Active Codex workspace for this cwd (or parent repo root)
     if let Some(ws) = workspaces
@@ -637,7 +667,7 @@ fn resolve_attached_session(workspaces: &[WorkspaceSummary], cwd: &str) -> Optio
     None
 }
 
-async fn lookup_attached_session(socket: &PathBuf, cwd: &str) -> Result<Option<String>, String> {
+async fn lookup_attached_session(socket: &Path, cwd: &str) -> Result<Option<String>, String> {
     match send_daemon_request(socket, &DaemonRequest::ListWorkspaces).await? {
         DaemonResponse::Workspaces { workspaces } => Ok(resolve_attached_session(&workspaces, cwd)),
         DaemonResponse::Error { message } => Err(message),
@@ -645,7 +675,7 @@ async fn lookup_attached_session(socket: &PathBuf, cwd: &str) -> Result<Option<S
     }
 }
 
-async fn run_interactive_repl(socket: &PathBuf, key: WorkspaceKey) -> Result<(), String> {
+async fn run_interactive_repl(socket: &Path, key: WorkspaceKey) -> Result<(), String> {
     println!(
         "cant interactive REPL (session={}, lang={}, cwd={})",
         key.session_id, key.language, key.cwd
@@ -709,7 +739,10 @@ async fn run_interactive_repl(socket: &PathBuf, key: WorkspaceKey) -> Result<(),
                 offset: None,
                 limit: None,
             }
-        } else if let Some(rest) = trimmed.strip_prefix(":vars ").or_else(|| trimmed.strip_prefix(":inspect ")) {
+        } else if let Some(rest) = trimmed
+            .strip_prefix(":vars ")
+            .or_else(|| trimmed.strip_prefix(":inspect "))
+        {
             let name = rest.trim();
             ReplRequest::Inspect {
                 name: (!name.is_empty()).then(|| name.to_string()),
@@ -792,7 +825,10 @@ mod tests {
 
     #[test]
     fn resolve_attached_falls_back_to_same_cwd_or_unique_active_codex() {
-        let same_cwd = vec![ws("pi-abc", "/repo", true), ws("codex-other", "/other", true)];
+        let same_cwd = vec![
+            ws("pi-abc", "/repo", true),
+            ws("codex-other", "/other", true),
+        ];
         assert_eq!(
             resolve_attached_session(&same_cwd, "/repo").as_deref(),
             Some("pi-abc")

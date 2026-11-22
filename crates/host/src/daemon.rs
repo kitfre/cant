@@ -220,7 +220,10 @@ async fn handle_client(stream: UnixStream, manager: Arc<ReplManager>, shutdown: 
                 id,
                 max_bytes,
                 session_id,
-            } => match manager.jobs().tail_job(&id, max_bytes, session_id.as_deref()) {
+            } => match manager
+                .jobs()
+                .tail_job(&id, max_bytes, session_id.as_deref())
+            {
                 Ok(tail) => DaemonResponse::JobTail {
                     id,
                     kind: tail.summary.kind.clone(),
@@ -239,7 +242,7 @@ async fn handle_client(stream: UnixStream, manager: Arc<ReplManager>, shutdown: 
                         message: err.to_string(),
                     },
                 }
-            },
+            }
             DaemonRequest::DrainNotices {
                 session_id,
                 include_passive,
@@ -288,17 +291,20 @@ async fn handle_client(stream: UnixStream, manager: Arc<ReplManager>, shutdown: 
             } => {
                 let sid = session_id.unwrap_or_else(|| "cli".into());
                 let cwd_path = Path::new(cwd.as_deref().unwrap_or(""));
-                match manager
-                    .comms()
-                    .send_to_target(&sid, cwd_path, handle.as_deref(), &target, body)
-                {
+                match manager.comms().send_to_target(
+                    &sid,
+                    cwd_path,
+                    handle.as_deref(),
+                    &target,
+                    body,
+                ) {
                     Ok(res) => DaemonResponse::ChannelSent {
                         channel_id: res.channel_id,
                         message: res.message,
                     },
                     Err(message) => DaemonResponse::Error { message },
                 }
-            },
+            }
             DaemonRequest::Shutdown => {
                 stop_after = true;
                 DaemonResponse::Ok
@@ -869,8 +875,12 @@ mod tests {
         use cant_protocol::daemon::{HarnessKind, PeerReachability};
 
         let manager = test_manager();
-        manager.comms().touch_peer("pi-1", Path::new("/repo/pi"), HarnessKind::Pi);
-        manager.comms().touch_peer("agy-1", Path::new("/repo/agy"), HarnessKind::Antigravity);
+        manager
+            .comms()
+            .touch_peer("pi-1", Path::new("/repo/pi"), HarnessKind::Pi);
+        manager
+            .comms()
+            .touch_peer("agy-1", Path::new("/repo/agy"), HarnessKind::Antigravity);
 
         let (server, client) = UnixStream::pair().unwrap();
         let (srv_r, srv_w) = server.into_split();
@@ -893,7 +903,10 @@ mod tests {
         ));
 
         assert_eq!(
-            manager.comms().peer_me("pi-1", Path::new("/repo/pi")).reachability,
+            manager
+                .comms()
+                .peer_me("pi-1", Path::new("/repo/pi"))
+                .reachability,
             PeerReachability::Push
         );
 
@@ -927,7 +940,10 @@ mod tests {
         shutdown.cancel();
         let _ = sub_task.await;
         assert_eq!(
-            manager.comms().peer_me("pi-1", Path::new("/repo/pi")).reachability,
+            manager
+                .comms()
+                .peer_me("pi-1", Path::new("/repo/pi"))
+                .reachability,
             PeerReachability::Idle
         );
     }
@@ -938,8 +954,12 @@ mod tests {
         use cant_protocol::daemon::HarnessKind;
 
         let manager = test_manager();
-        manager.comms().touch_peer("pi-2", Path::new("/repo/pi"), HarnessKind::Pi);
-        manager.comms().touch_peer("agy-2", Path::new("/repo/agy"), HarnessKind::Antigravity);
+        manager
+            .comms()
+            .touch_peer("pi-2", Path::new("/repo/pi"), HarnessKind::Pi);
+        manager
+            .comms()
+            .touch_peer("agy-2", Path::new("/repo/agy"), HarnessKind::Antigravity);
 
         // Message arrives before pi-2 subscribes
         manager
@@ -1085,9 +1105,11 @@ mod tests {
         manager
             .comms()
             .touch_peer("bob", Path::new("/repo/bob"), HarnessKind::Antigravity);
-        manager
-            .comms()
-            .touch_peer("charlie", Path::new("/repo/charlie"), HarnessKind::Antigravity);
+        manager.comms().touch_peer(
+            "charlie",
+            Path::new("/repo/charlie"),
+            HarnessKind::Antigravity,
+        );
 
         let dm = manager
             .comms()
@@ -1129,7 +1151,10 @@ mod tests {
             },
         )
         .await;
-        assert!(matches!(resp_none, DaemonResponse::Error { .. }), "got {resp_none:?}");
+        assert!(
+            matches!(resp_none, DaemonResponse::Error { .. }),
+            "got {resp_none:?}"
+        );
 
         let resp_charlie = send_req(
             &manager,
@@ -1140,7 +1165,10 @@ mod tests {
             },
         )
         .await;
-        assert!(matches!(resp_charlie, DaemonResponse::Error { .. }), "got {resp_charlie:?}");
+        assert!(
+            matches!(resp_charlie, DaemonResponse::Error { .. }),
+            "got {resp_charlie:?}"
+        );
 
         // Member read succeeds and peeks without advancing Bob's unread or notice cursors.
         let resp_bob = send_req(
@@ -1166,7 +1194,10 @@ mod tests {
         let notices = manager.comms().drain_notices("bob");
         assert_eq!(notices.len(), 1);
         assert_eq!(notices[0].body, "hello bob");
-        let (_, unread) = manager.comms().read_channel(Some("bob"), &dm, true, 50).unwrap();
+        let (_, unread) = manager
+            .comms()
+            .read_channel(Some("bob"), &dm, true, 50)
+            .unwrap();
         assert_eq!(unread.len(), 1);
     }
 }

@@ -39,7 +39,13 @@ impl Default for McpOptions {
 }
 
 pub async fn run_mcp_stdio(socket_path: &Path, options: McpOptions) -> Result<(), String> {
-    run_mcp_io(tokio::io::stdin(), tokio::io::stdout(), socket_path, options).await
+    run_mcp_io(
+        tokio::io::stdin(),
+        tokio::io::stdout(),
+        socket_path,
+        options,
+    )
+    .await
 }
 
 async fn run_mcp_io<R, W>(
@@ -105,9 +111,7 @@ where
         let fb_cwd = std::sync::Arc::clone(&fallback_cwd);
         let out_handle = std::sync::Arc::clone(&output);
         in_flight.spawn(async move {
-            if let Some(response) =
-                handle_mcp_request(&sock, &opts, &fb_sid, &fb_cwd, &msg).await
-            {
+            if let Some(response) = handle_mcp_request(&sock, &opts, &fb_sid, &fb_cwd, &msg).await {
                 let mut out = out_handle.lock().await;
                 write_json_line(&mut *out, &response).await?;
             }
@@ -506,9 +510,9 @@ async fn query_cant_status_snapshot(socket_path: &Path, state: &Value) -> CantSt
         _ => Vec::new(),
     };
     let workspace = match ws_res {
-        Ok(Some(DaemonResponse::Workspaces { workspaces })) => workspaces
-            .into_iter()
-            .find(|w| w.session_id == session_id),
+        Ok(Some(DaemonResponse::Workspaces { workspaces })) => {
+            workspaces.into_iter().find(|w| w.session_id == session_id)
+        }
         _ => None,
     };
 
@@ -591,7 +595,10 @@ mod tests {
         assert_eq!(codex_tool["title"], "Cant");
         let entry = &codex_tool["_meta"]["openai/ui"]["entrypoints"][0];
         assert_eq!(entry["type"], "statusline");
-        assert_eq!(entry["resourceUri"], crate::statusline::STATUSLINE_RESOURCE_URI);
+        assert_eq!(
+            entry["resourceUri"],
+            crate::statusline::STATUSLINE_RESOURCE_URI
+        );
 
         let agy_tool = build_tool_entry(
             "repl".into(),
@@ -694,11 +701,14 @@ mod tests {
         let session = |thread: &str, turn: &str| {
             codex_session(&json!({"_meta": {"x-codex-turn-metadata": {
                 "thread_id": thread, "turn_id": turn
-            }}})).unwrap()
+            }}}))
+            .unwrap()
         };
         assert_eq!(session("a", "one"), session("a", "two"));
         assert_ne!(session("a", "one"), session("b", "one"));
-        assert!(codex_session(&json!({"_meta":{"x-codex-turn-metadata":{"thread_id":""}}})).is_none());
+        assert!(
+            codex_session(&json!({"_meta":{"x-codex-turn-metadata":{"thread_id":""}}})).is_none()
+        );
         assert!(codex_session(&json!({})).is_none());
     }
 
@@ -729,10 +739,14 @@ mod tests {
         assert_eq!(resp["result"]["isError"], false);
         let text = resp["result"]["content"][0]["text"].as_str().unwrap();
         assert!(
-            text.to_ascii_lowercase().contains("not running") || text.to_ascii_lowercase().contains("no active"),
+            text.to_ascii_lowercase().contains("not running")
+                || text.to_ascii_lowercase().contains("no active"),
             "unexpected text: {text}"
         );
-        assert!(!missing_sock.exists(), "jobs tool must not auto-start daemon");
+        assert!(
+            !missing_sock.exists(),
+            "jobs tool must not auto-start daemon"
+        );
     }
 
     #[tokio::test]
@@ -919,7 +933,10 @@ mod tests {
         assert_eq!(list_a["result"]["isError"], false);
         let text_a = list_a["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text_a.contains("flow-a"), "expected flow-a in: {text_a}");
-        assert!(!text_a.contains("del-b"), "did not expect del-b in: {text_a}");
+        assert!(
+            !text_a.contains("del-b"),
+            "did not expect del-b in: {text_a}"
+        );
 
         // 3. list with allSessions: true includes both sessions.
         let list_all = handle_mcp_request(
@@ -1009,7 +1026,10 @@ mod tests {
         .unwrap();
         assert_eq!(cross_cancel["result"]["isError"], true);
         assert_eq!(
-            jobs.delegates.lock().unwrap()["del-b"].lock().unwrap().status,
+            jobs.delegates.lock().unwrap()["del-b"]
+                .lock()
+                .unwrap()
+                .status,
             WorkerStatus::Running
         );
 
@@ -1037,7 +1057,10 @@ mod tests {
         .unwrap();
         assert_eq!(override_cancel["result"]["isError"], false);
         assert_eq!(
-            jobs.delegates.lock().unwrap()["del-b"].lock().unwrap().status,
+            jobs.delegates.lock().unwrap()["del-b"]
+                .lock()
+                .unwrap()
+                .status,
             WorkerStatus::Cancelled
         );
 
@@ -1144,12 +1167,7 @@ mod tests {
         let jobs = Arc::new(JobManager::new(Arc::new(WorkerDriverRegistry::new())));
         let catalog = Arc::new(CapabilityCatalog::new());
         let adapters = Arc::new(AdapterHub::new());
-        let manager = Arc::new(ReplManager::new(
-            Arc::new(langs),
-            catalog,
-            adapters,
-            jobs,
-        ));
+        let manager = Arc::new(ReplManager::new(Arc::new(langs), catalog, adapters, jobs));
 
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("cant-agy-ui.sock");
@@ -1191,7 +1209,10 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(resp["result"]["isError"], false, "unexpected response: {resp}");
+        assert_eq!(
+            resp["result"]["isError"], false,
+            "unexpected response: {resp}"
+        );
 
         let _ = send_daemon_request(&sock, &DaemonRequest::Shutdown).await;
         let _ = daemon_handle.await;
@@ -1258,10 +1279,15 @@ mod tests {
         let mut ids = Vec::new();
         for _ in 0..2 {
             let mut line = String::new();
-            let n = tokio::time::timeout(Duration::from_millis(500), out_reader.read_line(&mut line))
-                .await
-                .expect("head-of-line blocked: second MCP request could not run while first was in flight")
-                .unwrap();
+            let n = tokio::time::timeout(
+                Duration::from_millis(500),
+                out_reader.read_line(&mut line),
+            )
+            .await
+            .expect(
+                "head-of-line blocked: second MCP request could not run while first was in flight",
+            )
+            .unwrap();
             assert!(n > 0);
             let v: Value = serde_json::from_str(line.trim()).unwrap();
             assert_eq!(v["result"]["isError"], false, "unexpected MCP error: {v}");

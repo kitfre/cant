@@ -41,8 +41,7 @@ impl LanguageRegistry {
     }
 
     pub fn register(&mut self, lang: Arc<dyn GuestLanguage>) {
-        self.languages
-            .insert(lang.identity().id.to_string(), lang);
+        self.languages.insert(lang.identity().id.to_string(), lang);
     }
 
     pub fn get(&self, id: &str) -> Option<Arc<dyn GuestLanguage>> {

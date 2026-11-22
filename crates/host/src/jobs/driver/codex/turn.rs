@@ -5,7 +5,7 @@ enum Answer {
     Streaming(String),
     Completed(String),
     Final(String),
-    NotAnAnswer,
+    Ignored,
 }
 
 pub(super) struct Turn {
@@ -50,7 +50,7 @@ impl Turn {
         *self.message(item["id"].as_str()) = match (item["phase"].as_str(), item["text"].as_str()) {
             (Some("final_answer"), Some(text)) => Answer::Final(text.into()),
             (None | Some("partial_answer"), Some(text)) => Answer::Completed(text.into()),
-            _ => Answer::NotAnAnswer,
+            _ => Answer::Ignored,
         };
     }
 
@@ -105,7 +105,7 @@ impl Turn {
                     .filter_map(|(_, answer)| match answer {
                         Answer::Final(text) => Some((true, text)),
                         Answer::Streaming(text) | Answer::Completed(text) => Some((false, text)),
-                        Answer::NotAnAnswer => None,
+                        Answer::Ignored => None,
                     })
                     .max_by_key(|(is_final, _)| *is_final)
                     .map(|(_, text)| text)

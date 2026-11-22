@@ -11,7 +11,9 @@
 //!   for Codex).
 
 use cant_host::daemon::send_daemon_request_if_running;
-use cant_protocol::daemon::{ChannelNotice, CompletionNotice, DaemonRequest, DaemonResponse, HarnessKind};
+use cant_protocol::daemon::{
+    ChannelNotice, CompletionNotice, DaemonRequest, DaemonResponse, HarnessKind,
+};
 use clap::ValueEnum;
 use serde_json::{json, Map, Value};
 use std::io::Read;
@@ -41,9 +43,8 @@ const AGY_STRICT_BLOCKED_TOOLS: &[&str] = &[
 const CODEX_STRICT_BLOCKED_TOOLS: &[&str] = &["Bash", "apply_patch"];
 
 const MEDIA_EXTENSIONS: &[&str] = &[
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp",
-    ".pdf", ".mp3", ".wav", ".ogg", ".flac", ".m4a",
-    ".mp4", ".webm", ".mov", ".avi", ".mkv",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".pdf", ".mp3", ".wav",
+    ".ogg", ".flac", ".m4a", ".mp4", ".webm", ".mov", ".avi", ".mkv",
 ];
 
 fn parse_env_bool(val: &str) -> Option<bool> {
@@ -102,7 +103,10 @@ fn extract_agy_context_with_env(
     worker_sid: Option<&str>,
 ) -> (Option<String>, Option<String>) {
     let override_sid = if worker_flag == Some("1") {
-        worker_sid.map(str::trim).filter(|s| !s.is_empty()).map(ToString::to_string)
+        worker_sid
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(ToString::to_string)
     } else {
         None
     };
@@ -172,7 +176,14 @@ fn inject_fields(
 
 fn extract_target_path(args: Option<&Map<String, Value>>) -> Option<&str> {
     let args = args?;
-    for key in ["Path", "path", "TargetFile", "AbsolutePath", "FilePath", "DirectoryPath"] {
+    for key in [
+        "Path",
+        "path",
+        "TargetFile",
+        "AbsolutePath",
+        "FilePath",
+        "DirectoryPath",
+    ] {
         if let Some(s) = args.get(key).and_then(Value::as_str) {
             return Some(s);
         }
@@ -448,7 +459,8 @@ pub async fn run_pre_invocation(socket_path: &Path, host: HookHost) -> Result<()
         return Ok(());
     };
 
-    let (notices, channels) = drain_session_notices(socket_path, session_id, cwd, harness, true).await;
+    let (notices, channels) =
+        drain_session_notices(socket_path, session_id, cwd, harness, true).await;
     let out = format_notice_response(effective, "UserPromptSubmit", &notices, &channels);
     println!("{}", serde_json::to_string(&out).unwrap());
     Ok(())
@@ -472,7 +484,8 @@ pub async fn run_post_tool(socket_path: &Path, host: HookHost) -> Result<(), Str
         return Ok(());
     };
 
-    let (notices, channels) = drain_session_notices(socket_path, session_id, cwd, harness, true).await;
+    let (notices, channels) =
+        drain_session_notices(socket_path, session_id, cwd, harness, true).await;
     let out = format_notice_response(effective, "PostToolUse", &notices, &channels);
     println!("{}", serde_json::to_string(&out).unwrap());
     Ok(())
@@ -539,14 +552,9 @@ pub async fn run_stop(socket_path: &Path, host: HookHost) -> Result<(), String> 
                 return Ok(());
             };
 
-            let (notices, channels) = drain_session_notices(
-                socket_path,
-                conv_id,
-                cwd,
-                HarnessKind::Antigravity,
-                false,
-            )
-            .await;
+            let (notices, channels) =
+                drain_session_notices(socket_path, conv_id, cwd, HarnessKind::Antigravity, false)
+                    .await;
             if notices.is_empty() && channels.is_empty() {
                 println!("{}", json!({ "decision": "allow" }));
             } else {
@@ -594,13 +602,22 @@ mod tests {
         let read_ws = json!({
             "toolCall": { "name": "read_file", "args": { "Path": "/repo/src/main.rs" } }
         });
-        assert_eq!(process_pre_tool_for_host(&read_ws, true, HookHost::Auto)["decision"], "deny");
-        assert_eq!(process_pre_tool_for_host(&read_ws, false, HookHost::Auto)["decision"], "allow");
+        assert_eq!(
+            process_pre_tool_for_host(&read_ws, true, HookHost::Auto)["decision"],
+            "deny"
+        );
+        assert_eq!(
+            process_pre_tool_for_host(&read_ws, false, HookHost::Auto)["decision"],
+            "allow"
+        );
 
         let run_cmd = json!({
             "toolCall": { "name": "run_command", "args": { "CommandLine": "ls" } }
         });
-        assert_eq!(process_pre_tool_for_host(&run_cmd, true, HookHost::Auto)["decision"], "deny");
+        assert_eq!(
+            process_pre_tool_for_host(&run_cmd, true, HookHost::Auto)["decision"],
+            "deny"
+        );
     }
 
     #[test]
@@ -608,12 +625,18 @@ mod tests {
         let schema_read = json!({
             "toolCall": { "name": "read_file", "args": { "Path": "/home/u/.gemini/antigravity-cli/mcp/cant_cant/repl.json" } }
         });
-        assert_eq!(process_pre_tool_for_host(&schema_read, true, HookHost::Auto)["decision"], "allow");
+        assert_eq!(
+            process_pre_tool_for_host(&schema_read, true, HookHost::Auto)["decision"],
+            "allow"
+        );
 
         let img_read = json!({
             "toolCall": { "name": "read_file", "args": { "Path": "/repo/screenshot.png" } }
         });
-        assert_eq!(process_pre_tool_for_host(&img_read, true, HookHost::Auto)["decision"], "allow");
+        assert_eq!(
+            process_pre_tool_for_host(&img_read, true, HookHost::Auto)["decision"],
+            "allow"
+        );
     }
 
     #[test]
@@ -644,7 +667,10 @@ mod tests {
             "tool_input": { "command": "*** Begin Patch" }
         });
         let patch_denied = process_pre_tool_for_host(&patch, true, HookHost::Codex);
-        assert_eq!(patch_denied["hookSpecificOutput"]["permissionDecision"], "deny");
+        assert_eq!(
+            patch_denied["hookSpecificOutput"]["permissionDecision"],
+            "deny"
+        );
     }
 
     #[test]
@@ -667,10 +693,7 @@ mod tests {
             out["hookSpecificOutput"]["updatedInput"]["cwd"],
             "/repo/worktree-a"
         );
-        assert_eq!(
-            out["hookSpecificOutput"]["updatedInput"]["code"],
-            "(+ 1 2)"
-        );
+        assert_eq!(out["hookSpecificOutput"]["updatedInput"]["code"], "(+ 1 2)");
 
         let other_mcp = json!({
             "hook_event_name": "PreToolUse",
@@ -679,7 +702,10 @@ mod tests {
             "tool_name": "mcp__github__list_issues",
             "tool_input": { "repo": "openai/codex" }
         });
-        assert_eq!(process_pre_tool_for_host(&other_mcp, true, HookHost::Codex), json!({}));
+        assert_eq!(
+            process_pre_tool_for_host(&other_mcp, true, HookHost::Codex),
+            json!({})
+        );
     }
 
     #[test]
@@ -695,7 +721,10 @@ mod tests {
         }];
 
         let ups = format_notice_response(HookHost::Codex, "UserPromptSubmit", &notices, &[]);
-        assert_eq!(ups["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit");
+        assert_eq!(
+            ups["hookSpecificOutput"]["hookEventName"],
+            "UserPromptSubmit"
+        );
         assert!(ups["hookSpecificOutput"]["additionalContext"]
             .as_str()
             .unwrap()
@@ -708,13 +737,18 @@ mod tests {
             .unwrap()
             .contains("bg-1"));
 
-        assert_eq!(format_notice_response(HookHost::Codex, "UserPromptSubmit", &[], &[]), json!({}));
+        assert_eq!(
+            format_notice_response(HookHost::Codex, "UserPromptSubmit", &[], &[]),
+            json!({})
+        );
 
-        let stop_cont = format_codex_stop_response(&json!({"stop_hook_active": false}), &notices, &[]);
+        let stop_cont =
+            format_codex_stop_response(&json!({"stop_hook_active": false}), &notices, &[]);
         assert_eq!(stop_cont["decision"], "block");
         assert!(stop_cont["reason"].as_str().unwrap().contains("bg-1"));
 
-        let stop_guard = format_codex_stop_response(&json!({"stop_hook_active": true}), &notices, &[]);
+        let stop_guard =
+            format_codex_stop_response(&json!({"stop_hook_active": true}), &notices, &[]);
         assert_eq!(stop_guard, json!({}));
 
         let stop_empty = format_codex_stop_response(&json!({"stop_hook_active": false}), &[], &[]);
@@ -760,7 +794,9 @@ mod tests {
                 "args": {}
             }
         });
-        assert!(process_pre_tool_for_host(&unrelated, true, HookHost::Auto).get("overwrite").is_none());
+        assert!(process_pre_tool_for_host(&unrelated, true, HookHost::Auto)
+            .get("overwrite")
+            .is_none());
 
         let codex_jobs = json!({
             "hook_event_name": "PreToolUse",
@@ -770,12 +806,18 @@ mod tests {
             "tool_input": { "op": "list" }
         });
         let codex_out = process_pre_tool_for_host(&codex_jobs, true, HookHost::Auto);
-        assert_eq!(codex_out["hookSpecificOutput"]["permissionDecision"], "allow");
+        assert_eq!(
+            codex_out["hookSpecificOutput"]["permissionDecision"],
+            "allow"
+        );
         assert_eq!(
             codex_out["hookSpecificOutput"]["updatedInput"]["sessionId"],
             "codex-019b-thread-jobs"
         );
-        assert_eq!(codex_out["hookSpecificOutput"]["updatedInput"]["cwd"], "/repo/wt");
+        assert_eq!(
+            codex_out["hookSpecificOutput"]["updatedInput"]["cwd"],
+            "/repo/wt"
+        );
 
         let other_codex = json!({
             "hook_event_name": "PreToolUse",
@@ -784,7 +826,10 @@ mod tests {
             "tool_name": "mcp__ci__jobs",
             "tool_input": {}
         });
-        assert_eq!(process_pre_tool_for_host(&other_codex, true, HookHost::Auto), json!({}));
+        assert_eq!(
+            process_pre_tool_for_host(&other_codex, true, HookHost::Auto),
+            json!({})
+        );
     }
 
     #[test]

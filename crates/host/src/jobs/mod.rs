@@ -521,11 +521,17 @@ mod unified_tests {
         // Active jobs come before terminal jobs.
         assert_eq!(ids[2], "flow-1");
 
-        let only_active = list_cap.call(&ctx, json!({ "activeOnly": true })).await.unwrap();
+        let only_active = list_cap
+            .call(&ctx, json!({ "activeOnly": true }))
+            .await
+            .unwrap();
         assert_eq!(only_active["total"], 2);
         assert_eq!(only_active["activeCount"], 2);
 
-        let only_flows = list_cap.call(&ctx, json!({ "kind": "flow" })).await.unwrap();
+        let only_flows = list_cap
+            .call(&ctx, json!({ "kind": "flow" }))
+            .await
+            .unwrap();
         assert_eq!(only_flows["total"], 1);
         assert_eq!(only_flows["jobs"][0]["id"], "flow-1");
     }
@@ -543,18 +549,33 @@ mod unified_tests {
         let script_tail = tail_cap.call(&ctx, json!({ "id": "bg-1" })).await.unwrap();
         assert_eq!(script_tail["kind"], "script");
         assert_eq!(script_tail["status"], "running");
-        assert!(script_tail["output"].as_str().unwrap().contains("running 10 tests"));
+        assert!(script_tail["output"]
+            .as_str()
+            .unwrap()
+            .contains("running 10 tests"));
         // Cursor must NOT advance on non-destructive tail.
-        assert_eq!(jobs.scripts.lock().unwrap()["bg-1"].lock().unwrap().cursor, 0);
+        assert_eq!(
+            jobs.scripts.lock().unwrap()["bg-1"].lock().unwrap().cursor,
+            0
+        );
 
         let del_tail = tail_cap.call(&ctx, json!({ "id": "del-1" })).await.unwrap();
         assert_eq!(del_tail["kind"], "delegate");
         assert_eq!(del_tail["name"], "review");
-        assert!(del_tail["output"].as_str().unwrap().contains("checking crates/host/src/mcp.rs"));
+        assert!(del_tail["output"]
+            .as_str()
+            .unwrap()
+            .contains("checking crates/host/src/mcp.rs"));
 
-        let flow_tail = tail_cap.call(&ctx, json!({ "id": "flow-1" })).await.unwrap();
+        let flow_tail = tail_cap
+            .call(&ctx, json!({ "id": "flow-1" }))
+            .await
+            .unwrap();
         assert_eq!(flow_tail["kind"], "flow");
-        assert!(flow_tail["output"].as_str().unwrap().contains("node 'build' (running)"));
+        assert!(flow_tail["output"]
+            .as_str()
+            .unwrap()
+            .contains("node 'build' (running)"));
 
         let cross = tail_cap.call(&ctx, json!({ "id": "del-other" })).await;
         assert!(cross.is_err());
@@ -570,16 +591,28 @@ mod unified_tests {
             .get_by_tool_name("__cant_jobs_cancel")
             .expect("jobs/cancel capability should be registered");
 
-        assert!(cancel_cap.call(&ctx, json!({ "id": "del-other" })).await.is_err());
+        assert!(cancel_cap
+            .call(&ctx, json!({ "id": "del-other" }))
+            .await
+            .is_err());
         assert_eq!(
-            jobs.delegates.lock().unwrap()["del-other"].lock().unwrap().status,
+            jobs.delegates.lock().unwrap()["del-other"]
+                .lock()
+                .unwrap()
+                .status,
             WorkerStatus::Running
         );
 
-        let cancelled = cancel_cap.call(&ctx, json!({ "id": "del-1" })).await.unwrap();
+        let cancelled = cancel_cap
+            .call(&ctx, json!({ "id": "del-1" }))
+            .await
+            .unwrap();
         assert_eq!(cancelled["cancelled"], true);
         assert_eq!(
-            jobs.delegates.lock().unwrap()["del-1"].lock().unwrap().status,
+            jobs.delegates.lock().unwrap()["del-1"]
+                .lock()
+                .unwrap()
+                .status,
             WorkerStatus::Cancelled
         );
     }

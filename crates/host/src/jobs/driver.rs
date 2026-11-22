@@ -31,8 +31,12 @@ pub struct WorkerSpec {
 
 impl WorkerSpec {
     fn effective_model<'a>(&'a self, default: Option<&'a str>) -> Option<&'a str> {
-        self.model.as_deref().into_iter().chain(default)
-            .map(str::trim).find(|name| !name.is_empty())
+        self.model
+            .as_deref()
+            .into_iter()
+            .chain(default)
+            .map(str::trim)
+            .find(|name| !name.is_empty())
     }
 }
 
@@ -282,10 +286,7 @@ impl WorkerDriver for AgyWorkerDriver {
             .map_err(|e| format!("Failed waiting on agy worker: {e}"))?;
         let stderr_text = stderr_task.await.unwrap_or_default();
 
-        let text = final_response
-            .unwrap_or(streamed_text)
-            .trim()
-            .to_string();
+        let text = final_response.unwrap_or(streamed_text).trim().to_string();
 
         let is_success = status.success()
             && final_status

@@ -29,7 +29,10 @@ pub fn error(message: impl Into<String>) -> SteelErr {
 pub fn type_error(context: &str, expected: &str, value: &SteelVal) -> SteelErr {
     SteelErr::new(
         ErrorKind::TypeMismatch,
-        format!("{context} expected {expected}, received {}", type_name(value)),
+        format!(
+            "{context} expected {expected}, received {}",
+            type_name(value)
+        ),
     )
 }
 pub fn arity_error(name: &str, expected: &str, received: usize) -> SteelErr {

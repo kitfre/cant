@@ -176,16 +176,17 @@ fn prepare_script(
     script: &Value,
     extra_args: Vec<String>,
 ) -> Result<PreparedScript, CapabilityError> {
-    let kind = script
-        .get("kind")
-        .and_then(Value::as_str)
-        .ok_or_else(|| CapabilityError::invalid_args("scripts.run", "script.kind is required ('file' or 'inline')."))?;
+    let kind = script.get("kind").and_then(Value::as_str).ok_or_else(|| {
+        CapabilityError::invalid_args(
+            "scripts.run",
+            "script.kind is required ('file' or 'inline').",
+        )
+    })?;
     match kind {
         "file" => {
-            let path = script
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| CapabilityError::invalid_args("scripts.run", "script.path is required."))?;
+            let path = script.get("path").and_then(Value::as_str).ok_or_else(|| {
+                CapabilityError::invalid_args("scripts.run", "script.path is required.")
+            })?;
             let resolved = resolve_cwd(base_cwd, Some(path));
             Ok(PreparedScript {
                 command: resolved.to_string_lossy().into_owned(),
@@ -197,11 +198,15 @@ fn prepare_script(
             let interpreter = script
                 .get("interpreter")
                 .and_then(Value::as_str)
-                .ok_or_else(|| CapabilityError::invalid_args("scripts.run", "script.interpreter is required."))?;
+                .ok_or_else(|| {
+                    CapabilityError::invalid_args("scripts.run", "script.interpreter is required.")
+                })?;
             let content = script
                 .get("content")
                 .and_then(Value::as_str)
-                .ok_or_else(|| CapabilityError::invalid_args("scripts.run", "script.content is required."))?;
+                .ok_or_else(|| {
+                    CapabilityError::invalid_args("scripts.run", "script.content is required.")
+                })?;
             let interp_args = parse_string_array(script.get("interpreterArgs"), "scripts.run")?;
             let ext = script
                 .get("filenameExtension")
@@ -416,10 +421,9 @@ impl Capability for SystemPipeline {
         &self.0
     }
     async fn call(&self, ctx: &CallContext, args: Value) -> Result<Value, CapabilityError> {
-        let steps = args
-            .get("steps")
-            .and_then(Value::as_array)
-            .ok_or_else(|| CapabilityError::invalid_args("system.pipeline", "Missing 'steps' array."))?;
+        let steps = args.get("steps").and_then(Value::as_array).ok_or_else(|| {
+            CapabilityError::invalid_args("system.pipeline", "Missing 'steps' array.")
+        })?;
         if steps.is_empty() || steps.len() > MAX_PIPELINE_STEPS {
             return Err(CapabilityError::invalid_args(
                 "system.pipeline",
@@ -559,7 +563,7 @@ impl Capability for SystemPipeline {
 
         let mut step_results = Vec::with_capacity(statuses.len());
         let mut all_ok = !timed_out;
-        for (idx, (st, stderr_t)) in statuses.into_iter().zip(stderr_tasks.into_iter()).enumerate() {
+        for (idx, (st, stderr_t)) in statuses.into_iter().zip(stderr_tasks).enumerate() {
             let err_cap = stderr_t
                 .await
                 .map_err(|e| CapabilityError::exec("ProcessError", e.to_string()))?

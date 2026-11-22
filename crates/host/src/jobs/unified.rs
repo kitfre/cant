@@ -91,8 +91,7 @@ pub fn filter_jobs(
     kind: Option<JobKind>,
 ) -> Vec<JobSummary> {
     jobs.retain(|j| {
-        (!active_only || is_active_status(&j.status))
-            && kind.is_none_or(|k| j.kind == k.as_str())
+        (!active_only || is_active_status(&j.status)) && kind.is_none_or(|k| j.kind == k.as_str())
     });
     sort_jobs_for_display(&mut jobs);
     jobs
@@ -352,15 +351,11 @@ impl Capability for JobsList {
             .unwrap_or(false);
         let kind = match args.get("kind") {
             None | Some(Value::Null) => None,
-            Some(v) => Some(
-                serde_json::from_value::<JobKind>(v.clone())
-                    .map_err(|_| CapabilityError::invalid_args("jobs.list", "kind must be script, delegate, or flow"))?,
-            ),
+            Some(v) => Some(serde_json::from_value::<JobKind>(v.clone()).map_err(|_| {
+                CapabilityError::invalid_args("jobs.list", "kind must be script, delegate, or flow")
+            })?),
         };
-        let offset = args
-            .get("offset")
-            .and_then(Value::as_u64)
-            .unwrap_or(0) as usize;
+        let offset = args.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
         let limit = args
             .get("limit")
             .and_then(Value::as_u64)

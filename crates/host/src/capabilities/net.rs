@@ -73,9 +73,9 @@ fn assert_public_url(url: &Url) -> Result<(), CapabilityError> {
         }
         return Ok(());
     }
-    let addrs = (host, port)
-        .to_socket_addrs()
-        .map_err(|e| CapabilityError::exec("NetworkError", format!("DNS resolution failed: {e}")))?;
+    let addrs = (host, port).to_socket_addrs().map_err(|e| {
+        CapabilityError::exec("NetworkError", format!("DNS resolution failed: {e}"))
+    })?;
     for addr in addrs {
         if is_private_ip(addr.ip()) {
             return Err(CapabilityError::exec(
@@ -109,9 +109,12 @@ async fn read_bounded_bytes(
 }
 
 fn html_to_text(html: &str) -> String {
-    let re_script = Regex::new(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>").unwrap();
+    let re_script = Regex::new(r"(?is)<script(?:\s[^>]*)?>.*?</script\s*>|<style(?:\s[^>]*)?>.*?</style\s*>|<noscript(?:\s[^>]*)?>.*?</noscript\s*>").unwrap();
     let stripped = re_script.replace_all(html, " ");
-    let re_block = Regex::new(r"(?i)</?(p|div|br|li|tr|h[1-6]|section|article|header|footer|pre|blockquote)[^>]*>").unwrap();
+    let re_block = Regex::new(
+        r"(?i)</?(p|div|br|li|tr|h[1-6]|section|article|header|footer|pre|blockquote)[^>]*>",
+    )
+    .unwrap();
     let with_breaks = re_block.replace_all(&stripped, "\n");
     let re_tags = Regex::new(r"<[^>]+>").unwrap();
     let no_tags = re_tags.replace_all(&with_breaks, "");
@@ -171,8 +174,9 @@ impl Capability for HttpRequest {
             .get("url")
             .and_then(Value::as_str)
             .ok_or_else(|| CapabilityError::invalid_args("http.request", "Missing 'url'."))?;
-        let mut url = Url::parse(raw_url)
-            .map_err(|e| CapabilityError::invalid_args("http.request", format!("Invalid URL: {e}")))?;
+        let mut url = Url::parse(raw_url).map_err(|e| {
+            CapabilityError::invalid_args("http.request", format!("Invalid URL: {e}"))
+        })?;
         if !matches!(url.scheme(), "http" | "https") {
             return Err(CapabilityError::invalid_args(
                 "http.request",
@@ -215,7 +219,10 @@ impl Capability for HttpRequest {
             .unwrap_or("GET")
             .to_ascii_uppercase();
         let method = reqwest::Method::from_bytes(method_str.as_bytes()).map_err(|_| {
-            CapabilityError::invalid_args("http.request", format!("Unsupported HTTP method: {method_str}"))
+            CapabilityError::invalid_args(
+                "http.request",
+                format!("Unsupported HTTP method: {method_str}"),
+            )
         })?;
         let has_json = args.get("json").is_some();
         let has_body = args.get("body").is_some();
@@ -225,7 +232,8 @@ impl Capability for HttpRequest {
                 "'json' and 'body' are mutually exclusive.",
             ));
         }
-        if (has_json || has_body) && matches!(method, reqwest::Method::GET | reqwest::Method::HEAD) {
+        if (has_json || has_body) && matches!(method, reqwest::Method::GET | reqwest::Method::HEAD)
+        {
             return Err(CapabilityError::invalid_args(
                 "http.request",
                 "GET and HEAD requests cannot include a request body.",
@@ -272,13 +280,22 @@ impl Capability for HttpRequest {
         if let Some(hdrs) = args.get("headers").and_then(Value::as_object) {
             for (k, v) in hdrs {
                 let s = v.as_str().ok_or_else(|| {
-                    CapabilityError::invalid_args("http.request", format!("Header '{k}' must be a string."))
+                    CapabilityError::invalid_args(
+                        "http.request",
+                        format!("Header '{k}' must be a string."),
+                    )
                 })?;
                 let name = HeaderName::from_bytes(k.as_bytes()).map_err(|e| {
-                    CapabilityError::invalid_args("http.request", format!("Invalid header name '{k}': {e}"))
+                    CapabilityError::invalid_args(
+                        "http.request",
+                        format!("Invalid header name '{k}': {e}"),
+                    )
                 })?;
                 let val = HeaderValue::from_str(s).map_err(|e| {
-                    CapabilityError::invalid_args("http.request", format!("Invalid header value for '{k}': {e}"))
+                    CapabilityError::invalid_args(
+                        "http.request",
+                        format!("Invalid header value for '{k}': {e}"),
+                    )
                 })?;
                 headers.insert(name, val);
             }
@@ -369,7 +386,9 @@ impl Capability for WebSearch {
             .get("query")
             .and_then(Value::as_str)
             .filter(|s| !s.trim().is_empty())
-            .ok_or_else(|| CapabilityError::invalid_args("web.search", "Missing non-empty 'query'."))?;
+            .ok_or_else(|| {
+                CapabilityError::invalid_args("web.search", "Missing non-empty 'query'.")
+            })?;
         let max_results = args
             .get("maxResults")
             .or_else(|| args.get("max_results"))
@@ -404,7 +423,11 @@ impl Capability for WebSearch {
         let snippets: Vec<String> = re_snip
             .captures_iter(&html)
             .map(|c| {
-                let raw = c.get(1).or_else(|| c.get(2)).map(|m| m.as_str()).unwrap_or("");
+                let raw = c
+                    .get(1)
+                    .or_else(|| c.get(2))
+                    .map(|m| m.as_str())
+                    .unwrap_or("");
                 decode_basic_entities(&re_tags.replace_all(raw, ""))
                     .split_whitespace()
                     .collect::<Vec<_>>()
@@ -445,7 +468,10 @@ fn unwrap_ddg_redirect(href: &str) -> String {
         href.to_string()
     };
     if let Ok(parsed) = Url::parse(&full) {
-        if parsed.host_str().is_some_and(|h| h.contains("duckduckgo.com")) {
+        if parsed
+            .host_str()
+            .is_some_and(|h| h.contains("duckduckgo.com"))
+        {
             for (k, v) in parsed.query_pairs() {
                 if k == "uddg" {
                     return v.into_owned();
@@ -502,7 +528,11 @@ impl Capability for WebFetch {
         let raw_text = String::from_utf8_lossy(&bytes).into_owned();
 
         let (title, extracted, extractor) = if content_type.contains("html") {
-            (extract_title(&raw_text), html_to_text(&raw_text), "basic-html")
+            (
+                extract_title(&raw_text),
+                html_to_text(&raw_text),
+                "basic-html",
+            )
         } else {
             (None, raw_text, "plain")
         };
@@ -609,4 +639,15 @@ pub fn register(catalog: &CapabilityCatalog) {
         argument_mode: ArgumentMode::Single,
         language_hints: steel_pos(&["url"]),
     })));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::html_to_text;
+
+    #[test]
+    fn html_to_text_skips_hidden_elements() {
+        let html = "before<SCRIPT type='module'>\n'</style>'; hidden</SCRIPT>middle<style>x</style><noscript>y</noscript>after";
+        assert_eq!(html_to_text(html), "before middle after");
+    }
 }

@@ -229,7 +229,11 @@ impl ChannelRecord {
         }
     }
 
-    fn summary(&self, viewer_id: Option<&str>, peers: &HashMap<String, PeerRecord>) -> ChannelSummary {
+    fn summary(
+        &self,
+        viewer_id: Option<&str>,
+        peers: &HashMap<String, PeerRecord>,
+    ) -> ChannelSummary {
         let member_ids: Vec<String> = self.members.iter().cloned().collect();
         let members: Vec<String> = member_ids
             .iter()
@@ -928,7 +932,13 @@ impl CommsHub {
     ) -> Result<Vec<String>, String> {
         let mut inner = self.inner.lock().unwrap();
         let now = now_ms();
-        ensure_peer_locked(&mut inner, parent_id, parent_cwd, infer_harness(parent_id), now);
+        ensure_peer_locked(
+            &mut inner,
+            parent_id,
+            parent_cwd,
+            infer_harness(parent_id),
+            now,
+        );
 
         let specs: Vec<String> = match arg {
             ChannelArg::Auto => vec![auto_room_name.to_string()],
@@ -957,7 +967,13 @@ impl CommsHub {
     ) -> Result<(WorkerPeerGuard, WorkerChannelPlan), String> {
         let mut inner = self.inner.lock().unwrap();
         let now = now_ms();
-        ensure_peer_locked(&mut inner, parent_id, parent_cwd, infer_harness(parent_id), now);
+        ensure_peer_locked(
+            &mut inner,
+            parent_id,
+            parent_cwd,
+            infer_harness(parent_id),
+            now,
+        );
 
         let base_handle = {
             let s = sanitize_slug(worker_handle_hint);
@@ -1136,7 +1152,10 @@ impl CommsHub {
             }
             if max_seq > cursor {
                 ch.read_cursors.insert(caller_id.to_string(), max_seq);
-                let n = ch.notified_cursors.entry(caller_id.to_string()).or_insert(0);
+                let n = ch
+                    .notified_cursors
+                    .entry(caller_id.to_string())
+                    .or_insert(0);
                 *n = (*n).max(max_seq);
             }
         }
@@ -1196,21 +1215,20 @@ fn create_channel_locked(
     id
 }
 
+type AppendedMessage = (
+    ChannelMessage,
+    Vec<DeliveryReport>,
+    Vec<(String, DaemonEvent)>,
+    Vec<(String, String)>,
+);
+
 fn append_message_locked(
     inner: &mut CommsInner,
     caller_id: &str,
     channel_id: &str,
     body: String,
     now: u64,
-) -> Result<
-    (
-        ChannelMessage,
-        Vec<DeliveryReport>,
-        Vec<(String, DaemonEvent)>,
-        Vec<(String, String)>,
-    ),
-    String,
-> {
+) -> Result<AppendedMessage, String> {
     if body.trim().is_empty() {
         return Err("Message body cannot be empty.".into());
     }

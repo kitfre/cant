@@ -1,17 +1,21 @@
 #[cfg(not(any(
-    all(target_os = "linux", target_pointer_width = "64", any(target_arch = "x86_64", target_arch = "aarch64")),
+    all(
+        target_os = "linux",
+        target_pointer_width = "64",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
     all(target_os = "macos", target_arch = "aarch64")
 )))]
 compile_error!("Cant Steel runner requires Linux x86_64/aarch64 or Apple-silicon macOS");
 mod bindings;
 mod bridge;
 mod diagnostics;
+mod json;
 #[cfg(target_os = "linux")]
 mod linux_seccomp;
-mod process_setup;
-mod json;
 mod parallel;
 mod prelude;
+mod process_setup;
 mod repl;
 mod wire;
 

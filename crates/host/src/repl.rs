@@ -1,14 +1,16 @@
 //! Persistent REPL workspace lifecycle, history, formatting, and multi-session manager.
 
 use crate::adapter::AdapterHub;
-use crate::capability::{is_path_disabled, ArgumentMode, CallContext, CapabilityCatalog, FileCoverageLedger};
-use crate::executor::{ConsoleEntry, ExecutorError, RunnerExecutor};
+use crate::capability::{
+    is_path_disabled, ArgumentMode, CallContext, CapabilityCatalog, FileCoverageLedger,
+};
 use crate::comms::CommsHub;
+use crate::executor::{ConsoleEntry, ExecutorError, RunnerExecutor};
 use crate::jobs::JobManager;
 use crate::language::{GuestLanguage, LanguageRegistry};
 use cant_protocol::daemon::{ReplRequest, ReplToolResponse, WorkspaceKey, WorkspaceSummary};
 use cant_protocol::runner::{
-    Bindings, ConsoleLevel, Program, RunnerReplOp, RunnerExecution, MAX_INPUTS_BYTES,
+    Bindings, ConsoleLevel, Program, RunnerExecution, RunnerReplOp, MAX_INPUTS_BYTES,
     MAX_SOURCE_BYTES,
 };
 use serde_json::{json, Value};
@@ -96,16 +98,21 @@ pub struct ReplWorkspace {
 
 impl ReplWorkspace {
     pub fn new(
-        session_id: String,
-        cwd: PathBuf,
-        disabled_namespaces: Vec<String>,
-        worker_driver: String,
+        key: WorkspaceKey,
         language: Arc<dyn GuestLanguage>,
         catalog: Arc<CapabilityCatalog>,
         adapters: Arc<AdapterHub>,
         jobs: Arc<JobManager>,
         comms: Arc<CommsHub>,
     ) -> Self {
+        let WorkspaceKey {
+            session_id,
+            cwd,
+            disabled_namespaces,
+            worker_driver,
+            ..
+        } = key;
+        let cwd = PathBuf::from(cwd);
         let workspace_id = Uuid::new_v4().to_string();
         let meta = Arc::new(WorkspaceMeta::new(
             session_id.clone(),
@@ -461,7 +468,12 @@ impl ReplWorkspace {
         };
 
         let started = Instant::now();
-        let exec_res = self.executor.as_mut().unwrap().execute(execution, ctx).await;
+        let exec_res = self
+            .executor
+            .as_mut()
+            .unwrap()
+            .execute(execution, ctx)
+            .await;
         self.sync_meta();
         let duration_ms = started.elapsed().as_millis() as u64;
 
@@ -557,7 +569,9 @@ impl ReplWorkspace {
     }
 
     fn header(&self, submission_id: Option<u64>, status: &str) -> String {
-        let sub = submission_id.map(|id| format!("/#{id}")).unwrap_or_default();
+        let sub = submission_id
+            .map(|id| format!("/#{id}"))
+            .unwrap_or_default();
         format!(
             "repl · {} · g{}{sub} · {status}",
             self.workspace_id, self.generation
@@ -777,17 +791,18 @@ impl ReplManager {
         let sid = key.session_id.clone();
         let cwd_path = PathBuf::from(&key.cwd);
         let harness = crate::comms::infer_harness_with_driver(&sid, &key.worker_driver);
-        let map_key = (key.session_id.clone(), key.cwd.clone(), key.language.clone());
+        let map_key = (
+            key.session_id.clone(),
+            key.cwd.clone(),
+            key.language.clone(),
+        );
         let workspace = {
             let mut guard = self.workspaces.lock().await;
             guard
                 .entry(map_key)
                 .or_insert_with(|| {
                     let ws = ReplWorkspace::new(
-                        key.session_id,
-                        PathBuf::from(key.cwd),
-                        key.disabled_namespaces,
-                        key.worker_driver,
+                        key,
                         lang,
                         Arc::clone(&self.catalog),
                         Arc::clone(&self.adapters),
@@ -817,8 +832,15 @@ impl ReplManager {
     }
 
     #[cfg(test)]
-    async fn workspace_mutex_for_test(&self, key: &WorkspaceKey) -> Option<Arc<Mutex<ReplWorkspace>>> {
-        let map_key = (key.session_id.clone(), key.cwd.clone(), key.language.clone());
+    async fn workspace_mutex_for_test(
+        &self,
+        key: &WorkspaceKey,
+    ) -> Option<Arc<Mutex<ReplWorkspace>>> {
+        let map_key = (
+            key.session_id.clone(),
+            key.cwd.clone(),
+            key.language.clone(),
+        );
         self.workspaces
             .lock()
             .await

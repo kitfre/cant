@@ -2,14 +2,10 @@
 //! session-scoped external capabilities (e.g. Pi native `mcp/*` tools) and external
 //! `WorkerDriver`s (e.g. Pi SDK workers) over a persistent Unix-socket connection.
 
-use crate::capability::{
-    ArgumentMode, CallContext, Capability, CapabilityError, CapabilityMeta,
-};
+use crate::capability::{ArgumentMode, CallContext, Capability, CapabilityError, CapabilityMeta};
 use crate::jobs::driver::{ProgressCallback, WorkerDriver, WorkerOutcome, WorkerSpec};
 use async_trait::async_trait;
-use cant_protocol::daemon::{
-    DaemonResponse, ExternalCapabilitySpec, ExternalWorkerSpec,
-};
+use cant_protocol::daemon::{DaemonResponse, ExternalCapabilitySpec, ExternalWorkerSpec};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -22,13 +18,15 @@ pub struct PendingWorker {
     pub on_progress: ProgressCallback,
 }
 
+type CapabilityReply = oneshot::Sender<Result<Value, (String, String)>>;
+
 pub struct AdapterSession {
     pub adapter_id: String,
     pub session_id: String,
     pub driver_name: Option<String>,
     pub outbound: mpsc::Sender<DaemonResponse>,
     pub capabilities: RwLock<Vec<Arc<dyn Capability>>>,
-    pub pending_caps: Mutex<HashMap<String, oneshot::Sender<Result<Value, (String, String)>>>>,
+    pub pending_caps: Mutex<HashMap<String, CapabilityReply>>,
     pub pending_workers: Mutex<HashMap<String, PendingWorker>>,
 }
 
@@ -84,9 +82,9 @@ impl AdapterSession {
             if ok {
                 let _ = pw.tx.send(Ok(value.unwrap_or(Value::Null)));
             } else {
-                let _ = pw
-                    .tx
-                    .send(Err(error.unwrap_or_else(|| "External worker failed.".into())));
+                let _ = pw.tx.send(Err(
+                    error.unwrap_or_else(|| "External worker failed.".into())
+                ));
             }
         }
     }
@@ -199,7 +197,8 @@ impl AdapterHub {
         session.set_capabilities(capabilities);
 
         let mut g = self.inner.write().unwrap();
-        g.by_adapter_id.insert(adapter_id.clone(), Arc::clone(&session));
+        g.by_adapter_id
+            .insert(adapter_id.clone(), Arc::clone(&session));
         g.by_session.insert(session_id, adapter_id.clone());
         if let Some(driver) = driver_name {
             g.by_driver.insert(driver, adapter_id);
@@ -209,7 +208,13 @@ impl AdapterHub {
     }
 
     pub fn update_capabilities(&self, adapter_id: &str, specs: Vec<ExternalCapabilitySpec>) {
-        let adapter = self.inner.read().unwrap().by_adapter_id.get(adapter_id).cloned();
+        let adapter = self
+            .inner
+            .read()
+            .unwrap()
+            .by_adapter_id
+            .get(adapter_id)
+            .cloned();
         if let Some(a) = adapter {
             a.set_capabilities(specs);
             self.inner.write().unwrap().version += 1;
@@ -261,7 +266,14 @@ impl AdapterHub {
     }
 
     pub fn driver_names(&self) -> Vec<String> {
-        let mut names: Vec<_> = self.inner.read().unwrap().by_driver.keys().cloned().collect();
+        let mut names: Vec<_> = self
+            .inner
+            .read()
+            .unwrap()
+            .by_driver
+            .keys()
+            .cloned()
+            .collect();
         names.sort();
         names
     }
@@ -300,10 +312,11 @@ impl WorkerDriver for AdapterWorkerDriver {
 
         let call_id = format!("extw_{}", Uuid::new_v4().simple());
         let (tx, rx) = oneshot::channel();
-        adapter.pending_workers.lock().unwrap().insert(
-            call_id.clone(),
-            PendingWorker { tx, on_progress },
-        );
+        adapter
+            .pending_workers
+            .lock()
+            .unwrap()
+            .insert(call_id.clone(), PendingWorker { tx, on_progress });
 
         let wire_spec = ExternalWorkerSpec {
             name: spec.name,
@@ -328,7 +341,10 @@ impl WorkerDriver for AdapterWorkerDriver {
             .is_err()
         {
             adapter.pending_workers.lock().unwrap().remove(&call_id);
-            return Err(format!("Failed sending worker request to '{}' adapter.", self.driver_id));
+            return Err(format!(
+                "Failed sending worker request to '{}' adapter.",
+                self.driver_id
+            ));
         }
 
         let res = tokio::select! {

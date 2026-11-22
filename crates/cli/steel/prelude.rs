@@ -14,19 +14,20 @@ fn key(value: &SteelVal) -> SteelResult<SteelVal> {
     }
 }
 fn object(args: &[SteelVal]) -> SteelResult<SteelVal> {
-    if args.len() % 2 != 0 {
+    let (pairs, remainder) = args.as_chunks::<2>();
+    if !remainder.is_empty() {
         return Err(json::error("object expects key/value pairs"));
     }
     let mut map = steel::HashMap::new();
-    for pair in args.chunks_exact(2) {
-        let key = key(&pair[0])?;
+    for [name, value] in pairs {
+        let key = key(name)?;
         if map.contains_key(&key) {
             return Err(json::error(format!(
                 "duplicate object key {}",
                 json::inspect(&key)
             )));
         }
-        map.insert(key, pair[1].clone());
+        map.insert(key, value.clone());
     }
     Ok(SteelVal::HashMapV(Gc::new(map).into()))
 }
@@ -193,9 +194,21 @@ mod tests {
     #[test]
     fn helper_errors_report_types_and_counts_without_dumping_values() {
         for (source, kind, message) in [
-            (r#"(get "private text" 'field)"#, steel::rerrs::ErrorKind::TypeMismatch, "get expected a record (hash), received string"),
-            ("(get (obj) 42)", steel::rerrs::ErrorKind::TypeMismatch, "record key expected a string or symbol, received number"),
-            ("(get (obj))", steel::rerrs::ErrorKind::ArityMismatch, "get expected 2 or 3 arguments, received 1"),
+            (
+                r#"(get "private text" 'field)"#,
+                steel::rerrs::ErrorKind::TypeMismatch,
+                "get expected a record (hash), received string",
+            ),
+            (
+                "(get (obj) 42)",
+                steel::rerrs::ErrorKind::TypeMismatch,
+                "record key expected a string or symbol, received number",
+            ),
+            (
+                "(get (obj))",
+                steel::rerrs::ErrorKind::ArityMismatch,
+                "get expected 2 or 3 arguments, received 1",
+            ),
         ] {
             let error = engine().compile_and_run_raw_program(source).unwrap_err();
             assert_eq!(error.kind(), kind);

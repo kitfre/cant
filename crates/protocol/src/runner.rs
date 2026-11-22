@@ -175,7 +175,8 @@ pub enum ChildMessage {
 }
 
 pub fn encode_frame<T: Serialize>(msg: &T, max_bytes: usize) -> Result<String, String> {
-    let mut encoded = serde_json::to_string(msg).map_err(|e| format!("Failed to serialize frame: {e}"))?;
+    let mut encoded =
+        serde_json::to_string(msg).map_err(|e| format!("Failed to serialize frame: {e}"))?;
     if encoded.len() > max_bytes {
         return Err(format!("Protocol frame exceeds {max_bytes}-byte limit."));
     }
@@ -209,6 +210,12 @@ mod tests {
 
         let ready_json = r#"{"type":"ready","protocolVersion":1,"runner":{"id":"steel-repl","programFormat":"scheme"}}"#;
         let ready: ChildMessage = serde_json::from_str(ready_json).unwrap();
-        assert!(matches!(ready, ChildMessage::Ready { protocol_version: 1, .. }));
+        assert!(matches!(
+            ready,
+            ChildMessage::Ready {
+                protocol_version: 1,
+                ..
+            }
+        ));
     }
 }

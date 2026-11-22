@@ -54,7 +54,9 @@ fn repl_string_escape_hint_preserves_errors_and_literal_input_recovery() {
     .unwrap();
     assert_eq!(recovered["preview"], r"\s");
     let unrelated = eval(&mut w, "missing-diagnostic-binding").unwrap_err();
-    assert!(!crate::diagnostics::render(&w.engine, unrelated, &[]).message.contains("Hint:"));
+    assert!(!crate::diagnostics::render(&w.engine, unrelated, &[])
+        .message
+        .contains("Hint:"));
 }
 
 #[test]
@@ -237,10 +239,7 @@ fn saved_host_callbacks_route_current_submission_and_error_table_is_fresh() {
     let input = File::from(std::os::fd::OwnedFd::from(guest.try_clone().unwrap()));
     let output = File::from(std::os::fd::OwnedFd::from(guest));
     let bridge = Arc::new(Mutex::new(Bridge::new(input, output)));
-    bridge
-        .lock()
-        .unwrap()
-        .begin_submission("first".into());
+    bridge.lock().unwrap().begin_submission("first".into());
     let mut w = Workspace::new(
         Engine::new_sandboxed(),
         bridge.clone(),
@@ -265,10 +264,7 @@ fn saved_host_callbacks_route_current_submission_and_error_table_is_fresh() {
         .as_str()
         .unwrap()
         .contains("\"message\" \"first\""));
-    bridge
-        .lock()
-        .unwrap()
-        .begin_submission("second".into());
+    bridge.lock().unwrap().begin_submission("second".into());
     assert!(bridge.lock().unwrap().host_errors.is_empty());
     let value = eval(&mut w, "(with-handler error-info (repl_caller))").unwrap();
     assert!(value["preview"]

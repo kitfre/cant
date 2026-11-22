@@ -2,7 +2,7 @@
 //! Native redefinition semantics and partial state after errors are deliberately preserved.
 use crate::{
     bridge::Bridge,
-    install, process_setup, json, register,
+    install, json, process_setup, register,
     wire::{self, Message, ReplOp, ReplOrigin, ReplRequest},
 };
 use serde_json::Value;
@@ -501,7 +501,8 @@ pub fn run(input: File, output: File) -> io::Result<()> {
         let message = match result {
             Ok(value) => json!({"type":"complete","runId":run_id,"ok":true,"value":value}),
             Err(error) => {
-                let error = crate::diagnostics::render(&workspace.engine, error, &bridge.host_errors);
+                let error =
+                    crate::diagnostics::render(&workspace.engine, error, &bridge.host_errors);
                 json!({"type":"complete","runId":run_id,"ok":false,"error":error})
             }
         };

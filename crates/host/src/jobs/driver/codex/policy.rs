@@ -1,6 +1,6 @@
 //! Launch policy for Codex 0.171's stdio app-server (not `codex exec`).
 use crate::jobs::driver::WorkerSpec;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio::process::Command;
 
 pub(super) fn configure(cmd: &mut Command, spec: &WorkerSpec) -> Result<(), String> {
@@ -86,11 +86,9 @@ mod tests {
             let mut spec = spec();
             spec.capabilities = Some(capabilities);
             let mut cmd = Command::new("codex");
-            assert!(
-                configure(&mut cmd, &spec)
-                    .unwrap_err()
-                    .contains("capabilities")
-            );
+            assert!(configure(&mut cmd, &spec)
+                .unwrap_err()
+                .contains("capabilities"));
             assert_eq!(cmd.as_std().get_args().count(), 0);
         }
     }

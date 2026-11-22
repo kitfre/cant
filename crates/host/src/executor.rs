@@ -76,7 +76,10 @@ impl RunnerExecutor {
         if self.child.is_none() {
             let mut process = self.command.spawn().map_err(|e| ExecutorError::Runtime {
                 name: "RunnerLaunchError".into(),
-                message: format!("Could not start runner {}: {e}", self.command.executable.display()),
+                message: format!(
+                    "Could not start runner {}: {e}",
+                    self.command.executable.display()
+                ),
                 console: vec![],
             })?;
 
@@ -240,11 +243,15 @@ impl RunnerExecutor {
                 message: format!("Failed to write execute frame: {e}"),
                 console: vec![],
             })?;
-        child.stdin.flush().await.map_err(|e| ExecutorError::Runtime {
-            name: "ProtocolError".into(),
-            message: format!("Failed to flush execute frame: {e}"),
-            console: vec![],
-        })?;
+        child
+            .stdin
+            .flush()
+            .await
+            .map_err(|e| ExecutorError::Runtime {
+                name: "ProtocolError".into(),
+                message: format!("Failed to flush execute frame: {e}"),
+                console: vec![],
+            })?;
 
         let mut console = Vec::new();
         let mut console_bytes = 0usize;
@@ -402,9 +409,10 @@ impl RunnerExecutor {
 
     pub async fn dispose(&mut self) {
         if let Some(mut running) = self.child.take() {
-            if let Ok(shutdown) =
-                cant_protocol::runner::encode_frame(&ParentMessage::Shutdown, DEFAULT_MAX_PROTOCOL_BYTES)
-            {
+            if let Ok(shutdown) = cant_protocol::runner::encode_frame(
+                &ParentMessage::Shutdown,
+                DEFAULT_MAX_PROTOCOL_BYTES,
+            ) {
                 let _ = running.stdin.write_all(shutdown.as_bytes()).await;
                 let _ = running.stdin.flush().await;
             }
@@ -427,7 +435,12 @@ async fn dispatch_host_call(
             let cap = ctx
                 .catalog
                 .get_by_api_path(&path)
-                .or_else(|| ctx.extra_capabilities.iter().find(|c| c.meta().api_path == path).cloned())
+                .or_else(|| {
+                    ctx.extra_capabilities
+                        .iter()
+                        .find(|c| c.meta().api_path == path)
+                        .cloned()
+                })
                 .ok_or_else(|| CapabilityError::NotFound(path.join(".")))?;
             (cap, args, false)
         }
