@@ -1,3 +1,4 @@
+use cant_lang_steel::bindings::SteelBinding;
 use serde::Deserialize;
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
@@ -92,26 +93,6 @@ pub struct Bindings {
     pub spread_api_paths: Vec<Vec<String>>,
     #[serde(default)]
     pub environment_scopes: bool,
-}
-#[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SteelBinding {
-    pub path: Vec<String>,
-    pub name: String,
-    pub mode: String,
-    pub positional: Vec<String>,
-    pub keywords: Vec<SteelKeyword>,
-    #[serde(default)]
-    pub signature_args: Option<Vec<String>>,
-}
-#[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SteelKeyword {
-    pub keyword: String,
-    pub field: String,
-    pub required: bool,
-    #[serde(default)]
-    pub aliases: Vec<String>,
 }
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]

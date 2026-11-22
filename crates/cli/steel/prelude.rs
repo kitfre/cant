@@ -1,9 +1,6 @@
 //! The bundled, effect-free interface layer. Install after registering `inputs`.
-use crate::{
-    bindings, json,
-    wire::{SteelBinding, SteelKeyword},
-};
-use serde::Deserialize;
+use crate::{bindings, json};
+use cant_lang_steel::{bindings::SteelBinding, catalog};
 use std::collections::BTreeMap;
 use steel::{gc::Gc, rvals::Result as SteelResult, steel_vm::engine::Engine, SteelVal};
 
@@ -46,17 +43,8 @@ fn object_fields(args: &[SteelVal]) -> SteelResult<SteelVal> {
     object(&pairs)
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Constructor {
-    name: String,
-    positional: Vec<String>,
-    fields: Vec<SteelKeyword>,
-    fixed: serde_json::Map<String, serde_json::Value>,
-}
 fn install_constructors(engine: &mut Engine) -> SteelResult<()> {
-    let constructors: Vec<Constructor> = serde_json::from_str(include_str!("constructors.json"))
-        .map_err(|error| json::error(error.to_string()))?;
+    let constructors = catalog::constructors().map_err(|error| json::error(error.to_string()))?;
     for constructor in constructors {
         let binding = SteelBinding {
             path: vec![],

@@ -1,8 +1,6 @@
 //! Native call shapes are inert metadata. They only lower to the existing path request.
-use crate::{
-    json,
-    wire::{Bindings, SteelBinding},
-};
+use crate::{json, wire::Bindings};
+use cant_lang_steel::bindings::SteelBinding;
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, HashSet};
 use steel::{rvals::Result, SteelVal};
@@ -248,8 +246,7 @@ pub fn arguments(
 
 #[test]
 fn pinned_reservations_cover_all_shadowable_runtime_globals() {
-    let reserved: Vec<String> =
-        serde_json::from_str(include_str!("native-reservations.json")).unwrap();
+    let reserved = cant_lang_steel::catalog::native_reservations();
     let engine = steel::steel_vm::engine::Engine::new_sandboxed();
     for name in engine
         .globals()

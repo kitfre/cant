@@ -1,5 +1,6 @@
 //! Projects Cant capability catalog entries into Steel native slash/kebab-case bindings.
 
+use crate::catalog;
 use cant_host::capability::{ArgumentMode, CapabilityMeta};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -7,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SteelKeyword {
     pub keyword: String,
     pub field: String,
@@ -17,7 +18,7 @@ pub struct SteelKeyword {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SteelBinding {
     pub path: Vec<String>,
     pub name: String,
@@ -36,14 +37,9 @@ struct ObjectShape {
 fn reserved_names() -> &'static HashSet<String> {
     static RESERVED: OnceLock<HashSet<String>> = OnceLock::new();
     RESERVED.get_or_init(|| {
-        let mut set: HashSet<String> =
-            serde_json::from_str(include_str!("native-reservations.json")).unwrap_or_default();
-        let constructors: Vec<Value> =
-            serde_json::from_str(include_str!("constructors.json")).unwrap_or_default();
-        for c in constructors {
-            if let Some(name) = c.get("name").and_then(Value::as_str) {
-                set.insert(name.to_string());
-            }
+        let mut set = catalog::native_reservations();
+        for constructor in catalog::constructors().expect("invalid bundled Steel constructors") {
+            set.insert(constructor.name);
         }
         set
     })
@@ -289,6 +285,14 @@ pub fn resolve_steel_bindings(metas: &[CapabilityMeta]) -> Vec<SteelBinding> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reservations_include_runtime_and_prelude_names() {
+        let names = reserved_names();
+        assert!(names.contains("channel/send"));
+        assert!(names.contains("scripts/inline"));
+        assert!(!names.contains("demo/read"));
+    }
 
     #[test]
     fn kebab_converts_camel_and_snake() {
