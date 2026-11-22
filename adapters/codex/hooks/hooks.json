@@ -1,0 +1,55 @@
+{
+  "description": "Cant REPL strict routing, cwd/session wiring, and background job completion hooks.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch|mcp__.*__(repl|jobs)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cant hook pre-tool --host codex --strict",
+            "statusMessage": "Cant: Check tool routing and REPL context",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cant hook pre-invocation --host codex",
+            "statusMessage": "Cant: Check for completed jobs before prompt",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*__repl",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cant hook post-tool --host codex",
+            "statusMessage": "Cant: Check for completed jobs after REPL",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cant hook stop --host codex",
+            "statusMessage": "Cant: Check whether active jobs need a follow-up",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

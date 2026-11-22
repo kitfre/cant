@@ -1,0 +1,13 @@
+pub mod adapter;
+pub mod capabilities;
+pub mod capability;
+pub mod comms;
+pub mod config;
+pub mod daemon;
+pub mod executor;
+pub mod jobs;
+pub mod language;
+pub mod mcp;
+pub mod repl;
+pub mod runner_process;
+pub mod statusline;

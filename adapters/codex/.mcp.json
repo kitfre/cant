@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cant": {
+      "command": "cant",
+      "args": ["mcp", "--disable", "delegate", "--disable", "agents", "--driver", "codex"]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "cant": {
+      "command": "cant",
+      "args": ["mcp", "--disable", "web", "--disable", "delegate", "--disable", "agents", "--driver", "agy"],
+      "tools": {
+        "repl": {
+          "eager": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "cant",
+  "version": "0.1.0",
+  "description": "Use Cant’s local Steel Scheme REPL for workspace files, processes, and background jobs.",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json"
+}
