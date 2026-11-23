@@ -1,6 +1,6 @@
 //! Native call shapes are inert metadata. They only lower to the existing path request.
 use crate::{json, wire::Bindings};
-use cant_lang_steel::bindings::SteelBinding;
+use cant_lang_steel::bindings::{BindingMode, SteelBinding};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, HashSet};
 use steel::{rvals::Result, SteelVal};
@@ -27,11 +27,8 @@ pub fn validate(bindings: &Bindings) -> Result<()> {
             return Err(json::error("Invalid or duplicate Steel binding identity"));
         }
         let spread = bindings.spread_api_paths.contains(&binding.path);
-        if !matches!(
-            binding.mode.as_str(),
-            "object" | "single" | "spread" | "options"
-        ) || spread != matches!(binding.mode.as_str(), "spread" | "options")
-            || (!matches!(binding.mode.as_str(), "object" | "options")
+        if spread != matches!(binding.mode, BindingMode::Spread | BindingMode::Options)
+            || (!matches!(binding.mode, BindingMode::Object | BindingMode::Options)
                 && (!binding.positional.is_empty() || !binding.keywords.is_empty()))
             || binding.keywords.len() > 1024
             || binding
@@ -70,7 +67,7 @@ pub fn validate(bindings: &Bindings) -> Result<()> {
         }
         let mut positionals = HashSet::new();
         for field in &binding.positional {
-            if (binding.mode != "options" && !fields.contains(field))
+            if (binding.mode != BindingMode::Options && !fields.contains(field))
                 || field.len() > 4096
                 || !positionals.insert(field)
             {
@@ -106,8 +103,8 @@ pub fn arguments(
     let argument = |value: &SteelVal, i: usize| {
         json::to_json_at(value, &format!("{} argument {}", binding.name, i + 1))
     };
-    match binding.mode.as_str() {
-        "options" => {
+    match binding.mode {
+        BindingMode::Options => {
             let prefix = binding.positional.len();
             let first_keyword = args.iter().position(|value| keyword(value).is_some());
             if let Some(index) = first_keyword {
@@ -120,7 +117,7 @@ pub fn arguments(
                     .map(|(i, v)| argument(v, i))
                     .collect::<Result<Vec<_>>>()?;
                 let mut options = binding.clone();
-                options.mode = "object".into();
+                options.mode = BindingMode::Object;
                 options.positional.clear();
                 values.push(arguments(&options, &args[prefix..], names)?);
                 return Ok(Value::Array(values));
@@ -138,7 +135,7 @@ pub fn arguments(
                 .collect::<Result<Vec<_>>>()
                 .map(Value::Array);
         }
-        "spread" => {
+        BindingMode::Spread => {
             if args.iter().any(|value| keyword(value).is_some()) {
                 return Err(json::argument_error(format!(
                     "{}: keywords are not supported; use positional arguments",
@@ -152,7 +149,7 @@ pub fn arguments(
                 .collect::<Result<Vec<_>>>()
                 .map(Value::Array);
         }
-        "single" => {
+        BindingMode::Single => {
             return if args.len() == 1 {
                 argument(&args[0], 0)
             } else {
@@ -162,7 +159,7 @@ pub fn arguments(
                 )))
             }
         }
-        _ => {}
+        BindingMode::Object => {}
     }
     let fail = |message: String| json::argument_error(format!("{}: {message}", binding.name));
     let mut object = Map::new();

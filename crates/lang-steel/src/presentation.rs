@@ -1,6 +1,6 @@
 //! Steel literal metadata formatting and signature presentation.
 
-use crate::bindings::SteelBinding;
+use crate::bindings::{BindingMode, SteelBinding};
 use cant_host::capability::{ArgumentMode, CapabilityMeta};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -84,7 +84,7 @@ pub fn signature(binding: Option<&SteelBinding>, meta: &CapabilityMeta) -> Strin
         };
         return format!("(tools.{} {arg})", meta.api_path.join("."));
     };
-    if b.mode != "object" && b.mode != "options" {
+    if !matches!(b.mode, BindingMode::Object | BindingMode::Options) {
         let arg = if meta.argument_mode == ArgumentMode::Spread {
             "arg ..."
         } else {
@@ -100,11 +100,12 @@ pub fn signature(binding: Option<&SteelBinding>, meta: &CapabilityMeta) -> Strin
         .collect();
     let mut parts = vec![name.to_string()];
     for pos in &b.positional {
-        let req = b.mode == "options" || kw_by_field.get(pos.as_str()).is_some_and(|(_, r)| *r);
+        let req = b.mode == BindingMode::Options
+            || kw_by_field.get(pos.as_str()).is_some_and(|(_, r)| *r);
         parts.push(if req { pos.clone() } else { format!("[{pos}]") });
     }
     for kw in &b.keywords {
-        if b.mode == "object" && b.positional.contains(&kw.field) {
+        if b.mode == BindingMode::Object && b.positional.contains(&kw.field) {
             continue;
         }
         let arg = format!("#:{} {}", kw.keyword, kw.field);

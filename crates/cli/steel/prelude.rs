@@ -1,6 +1,9 @@
 //! The bundled, effect-free interface layer. Install after registering `inputs`.
 use crate::{bindings, json};
-use cant_lang_steel::{bindings::SteelBinding, catalog};
+use cant_lang_steel::{
+    bindings::{BindingMode, SteelBinding},
+    catalog,
+};
 use std::collections::BTreeMap;
 use steel::{gc::Gc, rvals::Result as SteelResult, steel_vm::engine::Engine, SteelVal};
 
@@ -49,7 +52,7 @@ fn install_constructors(engine: &mut Engine) -> SteelResult<()> {
         let binding = SteelBinding {
             path: vec![],
             name: constructor.name.clone(),
-            mode: "object".into(),
+            mode: BindingMode::Object,
             positional: constructor.positional,
             keywords: constructor.fields,
             signature_args: None,
