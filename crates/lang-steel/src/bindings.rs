@@ -2,10 +2,24 @@
 
 use crate::catalog;
 use cant_host::capability::{ArgumentMode, CapabilityMeta};
-use serde::{Deserialize, Serialize};
+use serde::{de::IntoDeserializer, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BindingMode {
+    Single,
+    Spread,
+    Object,
+    Options,
+}
+
+// A mode is a string on the wire, not an externally tagged JSON object.
+fn deserialize_mode<'de, D: Deserializer<'de>>(de: D) -> Result<BindingMode, D::Error> {
+    BindingMode::deserialize(String::deserialize(de)?.into_deserializer())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -22,7 +36,8 @@ pub struct SteelKeyword {
 pub struct SteelBinding {
     pub path: Vec<String>,
     pub name: String,
-    pub mode: String,
+    #[serde(deserialize_with = "deserialize_mode")]
+    pub mode: BindingMode,
     pub positional: Vec<String>,
     pub keywords: Vec<SteelKeyword>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -152,8 +167,7 @@ pub fn resolve_steel_bindings(metas: &[CapabilityMeta]) -> Vec<SteelBinding> {
     struct Candidate {
         path: Vec<String>,
         native_name: String,
-        spread: bool,
-        mode: String,
+        mode: BindingMode,
         positional: Vec<String>,
         keywords: Vec<SteelKeyword>,
         safe: bool,
@@ -188,11 +202,11 @@ pub fn resolve_steel_bindings(metas: &[CapabilityMeta]) -> Vec<SteelBinding> {
             .unwrap_or_default();
 
         let mode = if spread {
-            "spread"
+            BindingMode::Spread
         } else if shape.is_some() {
-            "object"
+            BindingMode::Object
         } else {
-            "single"
+            BindingMode::Single
         };
 
         let keywords: Vec<SteelKeyword> = match &shape {
@@ -243,8 +257,7 @@ pub fn resolve_steel_bindings(metas: &[CapabilityMeta]) -> Vec<SteelBinding> {
         candidates.push(Candidate {
             path: meta.api_path.clone(),
             native_name,
-            spread,
-            mode: mode.to_string(),
+            mode,
             positional: hint_positional,
             keywords,
             safe,
@@ -268,10 +281,10 @@ pub fn resolve_steel_bindings(metas: &[CapabilityMeta]) -> Vec<SteelBinding> {
                 },
                 mode: if native {
                     c.mode
-                } else if c.spread {
-                    "spread".into()
+                } else if c.mode == BindingMode::Spread {
+                    BindingMode::Spread
                 } else {
-                    "single".into()
+                    BindingMode::Single
                 },
                 positional: if native { c.positional } else { vec![] },
                 keywords: if native { c.keywords } else { vec![] },
@@ -285,6 +298,23 @@ pub fn resolve_steel_bindings(metas: &[CapabilityMeta]) -> Vec<SteelBinding> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn binding_modes_are_a_closed_wire_contract() {
+        let mut wire = serde_json::json!({
+            "name": "demo/read", "path": ["demo", "read"],
+            "positional": [], "keywords": []
+        });
+        for mode in ["object", "single", "spread", "options"] {
+            wire["mode"] = mode.into();
+            let binding: SteelBinding = serde_json::from_value(wire.clone()).unwrap();
+            assert_eq!(serde_json::to_value(binding).unwrap(), wire);
+        }
+        wire["mode"] = serde_json::json!({"single": null});
+        assert!(serde_json::from_value::<SteelBinding>(wire.clone()).is_err());
+        wire["mode"] = "other".into();
+        assert!(serde_json::from_value::<SteelBinding>(wire).is_err());
+    }
 
     #[test]
     fn kebab_converts_camel_and_snake() {
