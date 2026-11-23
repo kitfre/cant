@@ -256,6 +256,19 @@ mod tests {
     }
 
     #[test]
+    fn projected_names_fall_back_without_shadowing_runtime_or_constructor_bindings() {
+        let lang = SteelLanguage::new();
+        for (path, expected) in [
+            (["channel", "send"], "tools.channel.send"),
+            (["scripts", "inline"], "tools.scripts.inline"),
+            (["demo", "read"], "demo/read"),
+        ] {
+            let projected = lang.project_bindings(&[meta(&path)]);
+            assert_eq!(projected[0]["name"], expected, "{path:?}");
+        }
+    }
+
+    #[test]
     fn tool_description_omits_disabled_delegate_and_agent_references() {
         let lang = SteelLanguage::new();
         let metas = vec![
