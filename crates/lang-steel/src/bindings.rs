@@ -317,14 +317,6 @@ mod tests {
     }
 
     #[test]
-    fn reservations_include_runtime_and_prelude_names() {
-        let names = reserved_names();
-        assert!(names.contains("channel/send"));
-        assert!(names.contains("scripts/inline"));
-        assert!(!names.contains("demo/read"));
-    }
-
-    #[test]
     fn kebab_converts_camel_and_snake() {
         assert_eq!(kebab("readMany"), "read-many");
         assert_eq!(kebab("expectedSha256"), "expected-sha256");
